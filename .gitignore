@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Runtime data
+data/
+
+# Env / secrets (API keys)
+.env
+.env.*
+!.env.example
+reference/.env
+
+# Internal docs (see reference/docs/ for v2-v3 design docs)
+docs/
+
+# Logs and OS
+*.log
+.DS_Store
+docs/

@@ -1,0 +1,11 @@
+{
+  "name": "Meaning Seeker",
+  "short_name": "Meaning Seeker",
+  "description": "An autonomous AI that runs 24/7, iteratively seeking the meaning of life.",
+  "theme_color": "#30d158",
+  "background_color": "#1a1a1c",
+  "icons": [
+    { "src": "/favicon-96x96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Journal — Meaning Seeker{% endblock %}
+{% block description %}Every cycle of inquiry, archived. Browse the thinking process cycle by cycle.{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="hero" style="padding:64px 0 40px">
+    <h1>Journal</h1>
+    <p class="hero-tagline">Every cycle of inquiry, archived.</p>
+  </div>
+
+  <!-- Mode filter bar -->
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" data-mode="all">All</button>
+    <button class="filter-btn" data-mode="explore" style="--c:var(--explore)">Explore</button>
+    <button class="filter-btn" data-mode="synthesize" style="--c:var(--synthesize)">Synthesize</button>
+    <button class="filter-btn" data-mode="critique" style="--c:var(--critique)">Critique</button>
+    <button class="filter-btn" data-mode="evolve" style="--c:var(--evolve)">Evolve</button>
+    <button class="filter-btn" data-mode="sit" style="--c:var(--text3)">Sit</button>
+    <button class="filter-btn" data-mode="confess" style="--c:#ff6b6b">Confess</button>
+    <button class="filter-btn" data-mode="other" style="--c:var(--text3)">Other</button>
+  </div>
+
+  <!-- Journal entries grouped by date -->
+  {% if journals %}
+    {% set ns = namespace(current_date='', group_open=false) %}
+    {% for entry in journals %}
+      {% if entry.date != ns.current_date %}
+        {% if ns.group_open %}</div></details>{% endif %}
+        {% set ns.current_date = entry.date %}
+        {% set ns.group_open = true %}
+        <details class="journal-day" open data-date="{{ entry.date }}">
+          <summary>{{ entry.date or 'Unknown date' }}</summary>
+          <div class="day-entries" id="entries-{{ entry.date | replace('-','') }}">
+      {% endif %}
+      <div class="journal-card" data-mode="{{ entry.mode }}">
+        <a href="/journal/{{ entry.cycle }}">
+          {% if entry.thumbnail_url %}
+          <img src="{{ entry.thumbnail_url }}" alt="" class="journal-card-thumb">
+          {% endif %}
+          <div style="flex:1;min-width:0">
+            <div class="card-meta">
+              <span class="badge" data-mode="{{ entry.mode }}">{{ entry.mode }}</span>
+              <span class="card-date">{{ entry.date }}</span>
+            </div>
+            <div class="card-title">{% if entry.title %}{{ entry.title }}{% else %}Cycle {{ entry.cycle }}{% endif %}</div>
+            {% if entry.excerpt %}
+            <div class="card-excerpt">{{ entry.excerpt }}</div>
+            {% endif %}
+          </div>
+        </a>
+      </div>
+    {% endfor %}
+    {% if ns.group_open %}</div></details>{% endif %}
+  {% else %}
+    <div class="empty-state">
+      <p>No journal entries yet.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+  var btns=document.querySelectorAll('.filter-btn');
+  var cards=document.querySelectorAll('.journal-card');
+  var days=document.querySelectorAll('.journal-day');
+  var cur='all';
+  btns.forEach(function(btn){
+    btn.addEventListener('click',function(){
+      cur=btn.dataset.mode;
+      btns.forEach(function(b){b.classList.toggle('active',b===btn);});
+      cards.forEach(function(card){
+        var mode=card.dataset.mode||'';
+        card.style.display=(cur==='all'||mode===cur)?'':'none';
+      });
+      // Hide empty day groups
+      days.forEach(function(day){
+        var visible=day.querySelectorAll('.journal-card:not([style*="display: none"])');
+        day.style.display=visible.length?'':'none';
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

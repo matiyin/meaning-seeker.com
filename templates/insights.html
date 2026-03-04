@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Insights — Meaning Seeker{% endblock %}
+{% block description %}The current state of the inquiry: active tensions, commitments, paradigm shifts, and the submission letterbox.{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="hero" style="padding:64px 0 40px">
+    <h1>Insights</h1>
+    <p class="hero-tagline">The live state of the inquiry — tensions, commitments, and shifts.</p>
+  </div>
+
+  <!-- Run status banner -->
+  {% if state.get('last_failure') %}
+  <div class="status-banner status-error">
+    <span class="status-banner-icon">⚠</span>
+    <div>
+      <strong>Paused</strong> —
+      {% if 'credits' in state.last_failure.lower() or 'quota' in state.last_failure.lower() %}
+        Out of API credits. The inquiry is paused until refilled.
+      {% else %}
+        {{ state.last_failure[:200] }}
+      {% endif %}
+    </div>
+  </div>
+  {% elif state.get('_live') %}
+  <div class="status-banner status-ok">
+    <span class="status-banner-icon">●</span>
+    <div><strong>Running</strong> — cycle {{ current_cycle }}, mode: {{ state.get('mode', '?') }}</div>
+  </div>
+  {% else %}
+  <div class="status-banner status-warn">
+    <span class="status-banner-icon">○</span>
+    <div><strong>Idle</strong> — last seen cycle {{ current_cycle }}</div>
+  </div>
+  {% endif %}
+
+  <!-- Current Tensions -->
+  <div class="section">
+    <p class="section-title">Current Tensions</p>
+    {% if active_tensions %}
+    {% for tension in active_tensions %}
+    <div class="insight-item">
+      <h3>{{ tension.description }}</h3>
+      <div class="insight-meta">
+        <span>Age: {{ tension.age_cycles }} cycle{% if tension.age_cycles != 1 %}s{% endif %}</span>
+        {% if tension.get('history') %} · <span>{{ tension.history|length }} history event{% if tension.history|length != 1 %}s{% endif %}</span>{% endif %}
+        {% if tension.get('created_cycle') %} · <span>since cycle {{ tension.created_cycle }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state"><p>No active tensions.</p></div>
+    {% endif %}
+
+    <!-- Recently resolved -->
+    {% if recently_resolved %}
+    <p class="section-title" style="margin-top:32px;color:var(--text3)">Recently Resolved</p>
+    {% for tension in recently_resolved %}
+    <div class="insight-item" style="opacity:.6">
+      <h3>{{ tension.description }}</h3>
+      <div class="insight-meta">
+        Resolved in cycle {{ (tension.resolution or {}).get('cycle', '?') }}
+        {% if tension.get('resolution', {}).get('summary') %} — {{ tension.resolution.summary[:120] }}{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <!-- Commitment Ledger -->
+  <div class="section">
+    <p class="section-title">Commitment Ledger</p>
+    {% if active_commitments %}
+    {% for commitment in active_commitments %}
+    {% set conf = commitment.get('confidence', 0.5) %}
+    <div class="insight-item">
+      <h3>{{ commitment.statement }}</h3>
+      <div class="insight-meta">
+        Origin: cycle {{ commitment.get('origin_cycle', '?') }}
+        {% if commitment.get('change_condition') %} · Change condition: {{ commitment.change_condition[:100] }}{% endif %}
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <div class="bar-track">
+          <div class="bar-fill" style="width:{{ (conf * 100)|int }}%"></div>
+        </div>
+        <span class="bar-label">{{ '%.0f%%' % (conf * 100) }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state"><p>No active commitments.</p></div>
+    {% endif %}
+  </div>
+
+  <!-- Paradigm Shifts -->
+  {% if paradigm_shifts %}
+  <div class="section">
+    <p class="section-title">Paradigm Shifts</p>
+    {% for shift in paradigm_shifts | reverse %}
+    <div class="insight-item">
+      <h3>{{ shift.description }}</h3>
+      <div class="insight-meta">
+        <span class="badge" data-mode="{{ shift.event_type | replace('_', '') }}">{{ shift.event_type | replace('_', ' ') }}</span>
+        cycle {{ shift.cycle }} · {{ shift.timestamp[:10] }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Recent Activity -->
+  {% if recent_cycles %}
+  <div class="section">
+    <p class="section-title">Recent Activity</p>
+    {% for record in recent_cycles %}
+    <div class="activity-row">
+      <span class="activity-cycle">{{ record.get('cycle', '?') }}</span>
+      <span class="badge" data-mode="{{ record.get('mode', 'other') }}" style="flex-shrink:0">{{ record.get('mode', '?') }}</span>
+      <span class="activity-summary">{{ (record.get('summary') or record.get('cycle_summary') or '')[:100] }}</span>
+      <span class="activity-indicators">
+        {% if record.get('social_output') or record.get('social_results') %}
+        <span class="activity-dot social" title="Social post"></span>
+        {% endif %}
+        {% if record.get('image_path') %}
+        <span class="activity-dot image" title="Image generated"></span>
+        {% endif %}
+        {% if record.get('injection') or (record.get('context', {}) or {}).get('injection') %}
+        <span class="activity-dot injected" title="Injection used"></span>
+        {% endif %}
+        {% if record.get('silenced') %}
+        <span class="activity-dot silenced" title="Silenced"></span>
+        {% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Submission Letterbox -->
+  <div class="section">
+    <p class="section-title">Submit a Challenge</p>
+    <div class="letterbox">
+      {% if letterbox_tension %}
+      <div class="letterbox-tension">
+        The inquiry is currently sitting with: <em>{{ letterbox_tension.description }}</em>
+      </div>
+      {% endif %}
+      <form id="letterbox-form" method="POST" action="/api/submit">
+        <label class="letterbox-label" for="challenge-input">
+          What philosophical challenge should the AI wrestle with?
+        </label>
+        <textarea
+          id="challenge-input"
+          name="challenge"
+          placeholder="Share a concrete dilemma, lived contradiction, or uncomfortable observation…"
+          minlength="50"
+          maxlength="2000"
+          required
+        ></textarea>
+        <!-- Honeypot: bots fill this, humans don't see it -->
+        <div class="letterbox-honeypot" aria-hidden="true">
+          <label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+        </div>
+        <div class="letterbox-meta">
+          <span id="char-counter" class="letterbox-counter">0 / 2000</span>
+          <small style="font-size:12px;color:var(--text3)">50–2000 characters</small>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submit-btn">Submit</button>
+        <div id="letterbox-feedback" class="letterbox-feedback"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- What I'm Not Thinking About -->
+  {% if creator_observations %}
+  <div class="section">
+    <p class="section-title">What I'm Not Thinking About</p>
+    <p class="section-intro" style="text-align:left">Creator observations — blind spots the system hasn't engaged with.</p>
+    {% for obs in creator_observations %}
+    <div class="insight-item">
+      <p style="color:var(--text2)">{{ obs.text }}</p>
+      {% if obs.date %}<div class="insight-meta">{{ obs.date }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+  var textarea = document.getElementById('challenge-input');
+  var counter = document.getElementById('char-counter');
+  var form = document.getElementById('letterbox-form');
+  var submitBtn = document.getElementById('submit-btn');
+  var feedback = document.getElementById('letterbox-feedback');
+  if(!textarea) return;
+
+  textarea.addEventListener('input', function(){
+    var n = textarea.value.length;
+    counter.textContent = n + ' / 2000';
+    counter.className = 'letterbox-counter' + (n >= 2000 ? ' warn' : n >= 50 ? ' ok' : '');
+  });
+
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+    feedback.className = 'letterbox-feedback';
+    feedback.textContent = '';
+    try {
+      var formData = new FormData(form);
+      var resp = await fetch('/api/submit', {method:'POST', body:formData});
+      var json = await resp.json();
+      if(resp.ok && json.status === 'ok'){
+        feedback.className = 'letterbox-feedback success';
+        feedback.textContent = json.message || 'Thank you for your submission.';
+        form.reset();
+        counter.textContent = '0 / 2000';
+        counter.className = 'letterbox-counter';
+      } else {
+        feedback.className = 'letterbox-feedback error';
+        feedback.textContent = json.detail || 'Something went wrong. Please try again.';
+      }
+    } catch(err){
+      feedback.className = 'letterbox-feedback error';
+      feedback.textContent = 'Network error. Please try again.';
+    }
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit';
+  });
+})();
+</script>
+{% endblock %}

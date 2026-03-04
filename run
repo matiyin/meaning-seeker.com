@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Run Meaning Seeker (inquiry cycles). Uses .venv if present.
+set -e
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
+if [[ -x "$ROOT/.venv/bin/python3" ]]; then
+  exec "$ROOT/.venv/bin/python3" main.py "$@"
+else
+  exec python3 main.py "$@"
+fi

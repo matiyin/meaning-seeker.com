@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>{% block title %}Meaning Seeker{% endblock %}</title>
+<meta name="description" content="{% block description %}An autonomous AI searching for meaning — one inquiry cycle at a time.{% endblock %}">
+<meta name="theme-color" content="#30d158">
+<meta name="author" content="10101">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+<meta property="og:description" content="{% block og_description %}{{ self.description() }}{% endblock %}">
+<meta property="og:site_name" content="Meaning Seeker">
+<meta property="og:image" content="{{ site_url }}/assets/TheMeaningSeeker.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ self.og_title() }}">
+<meta name="twitter:description" content="{{ self.og_description() }}">
+<meta name="twitter:image" content="{{ site_url }}/assets/TheMeaningSeeker.jpg">
+<link rel="icon" type="image/png" href="/static/assets/icons/favicon-96x96.png" sizes="96x96">
+<link rel="icon" type="image/svg+xml" href="/static/assets/icons/favicon.svg">
+<link rel="shortcut icon" href="/static/assets/icons/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/assets/icons/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+<canvas id="seeker-bg"></canvas>
+<nav class="nav">
+  <a href="/" class="nav-brand">Meaning Seeker</a>
+  <div class="nav-links">
+    <a href="/"{% if active_nav == 'home' %} class="active"{% endif %}>Home</a>
+    <a href="/journal"{% if active_nav == 'journal' %} class="active"{% endif %}>Journal</a>
+    <a href="/insights"{% if active_nav == 'insights' %} class="active"{% endif %}>Insights</a>
+    <a href="/gallery"{% if active_nav == 'gallery' %} class="active"{% endif %}>Gallery</a>
+  </div>
+  <div class="nav-right">
+    <a href="https://github.com/matiyin/meaning-seeker.com" target="_blank" rel="noopener noreferrer" class="nav-github" title="GitHub repository" aria-label="GitHub repository">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+    </a>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+      <svg id="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
+    <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span class="nav-menu-icon">≡</span>
+    </button>
+  </div>
+</nav>
+<main class="page-content">
+{% block content %}{% endblock %}
+</main>
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <div class="site-footer-bottom">
+      <span>Meaning Seeker — an autonomous inquiry</span>
+      <a href="https://github.com/matiyin/meaning-seeker.com" target="_blank" rel="noopener noreferrer">Source</a>
+    </div>
+  </div>
+</footer>
+<script>
+(function(){
+  var h=document.documentElement,t=document.getElementById('theme-toggle'),
+      m=document.getElementById('icon-moon'),s=document.getElementById('icon-sun');
+  function sys(){return window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark'}
+  function set(v){h.setAttribute('data-theme',v);m.style.display=v==='dark'?'':'none';s.style.display=v==='light'?'':'none'}
+  var st=localStorage.getItem('ms-theme');set(st||sys());
+  t.addEventListener('click',function(){var c=h.getAttribute('data-theme');var n=c==='dark'?'light':'dark';set(n);localStorage.setItem('ms-theme',n)});
+  window.matchMedia('(prefers-color-scheme:light)').addEventListener('change',function(e){if(!localStorage.getItem('ms-theme'))set(e.matches?'light':'dark')});
+})();(function(){
+  var nav=document.querySelector('.nav');if(!nav)return;
+  var lastY=window.scrollY||0;var threshold=60;
+  function onScroll(){var y=window.scrollY||0;
+    if(y<=threshold){nav.classList.remove('nav-hidden');lastY=y;return}
+    if(y>lastY)nav.classList.add('nav-hidden');
+    else nav.classList.remove('nav-hidden');
+    lastY=y;
+  }
+  var ticking=false;window.addEventListener('scroll',function(){if(!ticking){requestAnimationFrame(function(){onScroll();ticking=false});ticking=true}},{passive:true});
+})();(function(){
+  var btn=document.getElementById('nav-hamburger');var nav=document.querySelector('.nav');
+  if(!btn||!nav)return;
+  function setOpen(open){
+    nav.classList.toggle('nav-open',open);
+    btn.setAttribute('aria-expanded',open);
+    document.body.setAttribute('data-menu-open',open?'true':'');
+  }
+  btn.addEventListener('click',function(){setOpen(!nav.classList.contains('nav-open'));});
+  document.querySelectorAll('.nav-links a').forEach(function(a){
+    a.addEventListener('click',function(){setOpen(false);});
+  });
+})();
+</script>
+<script>(function(){
+var canvas=document.getElementById('seeker-bg');if(!canvas)return;
+var ctx=canvas.getContext('2d');
+var W,H,pageH,dpr;
+var isDark=document.documentElement.getAttribute('data-theme')!=='light';
+new MutationObserver(function(){isDark=document.documentElement.getAttribute('data-theme')!=='light';}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+function themeColor(hue,act){
+  if(isDark)return[Math.round(48+hue*15+act*30),Math.round(209-hue*20+act*20),Math.round(88+hue*25+act*15)];
+  return[Math.round(45+hue*10+act*15),Math.round(85+hue*15+act*20),Math.round(140+hue*20+act*25)];
+}
+function trailColor(){return isDark?[48,209,88]:[50,95,150];}
+function headColor(){return isDark?[60,220,100]:[55,110,165];}
+var GRAD=[[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+var perm=new Uint8Array(512);
+(function(){var p=new Uint8Array(256);for(var i=0;i<256;i++)p[i]=i;
+for(var i=255;i>0;i--){var j=(Math.random()*(i+1))|0;var t=p[i];p[i]=p[j];p[j]=t;}
+for(var i=0;i<512;i++)perm[i]=p[i&255];})();
+function noise2D(x,y){
+  var F2=0.5*(Math.sqrt(3)-1),G2=(3-Math.sqrt(3))/6;
+  var s=(x+y)*F2,i=Math.floor(x+s),j=Math.floor(y+s),t=(i+j)*G2;
+  var x0=x-(i-t),y0=y-(j-t),i1=x0>y0?1:0,j1=x0>y0?0:1;
+  var x1=x0-i1+G2,y1=y0-j1+G2,x2=x0-1+2*G2,y2=y0-1+2*G2;
+  var ii=i&255,jj=j&255;
+  function dot(gi,xp,yp){var g=GRAD[gi%8];return g[0]*xp+g[1]*yp;}
+  var n0=0,n1=0,n2=0;
+  var t0=0.5-x0*x0-y0*y0;if(t0>0){t0*=t0;n0=t0*t0*dot(perm[ii+perm[jj]],x0,y0);}
+  var t1=0.5-x1*x1-y1*y1;if(t1>0){t1*=t1;n1=t1*t1*dot(perm[ii+i1+perm[jj+j1]],x1,y1);}
+  var t2=0.5-x2*x2-y2*y2;if(t2>0){t2*=t2;n2=t2*t2*dot(perm[ii+1+perm[jj+1]],x2,y2);}
+  return 70*(n0+n1+n2);
+}
+function smoothstep(a,b,t){var x=Math.max(0,Math.min(1,(t-a)/(b-a)));return x*x*(3-2*x);}
+var SPACING=20,grid=[],gridCols,gridRows;
+function initGrid(){
+  pageH=Math.max(document.documentElement.scrollHeight,H);
+  gridCols=Math.ceil(W/SPACING)+2;gridRows=Math.ceil(pageH/SPACING)+2;
+  var ox=(W-(gridCols-1)*SPACING)/2;grid=[];
+  for(var r=0;r<gridRows;r++)for(var c=0;c<gridCols;c++){
+    var jx=noise2D(c*0.7,r*0.7)*SPACING*0.2,jy=noise2D(c*0.7+100,r*0.7+100)*SPACING*0.2;
+    grid.push({x:ox+c*SPACING+jx,y:r*SPACING+jy,activation:0,hue:noise2D(c*0.3,r*0.3+50)});
+  }
+}
+function resize(){
+  dpr=window.devicePixelRatio||1;W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);initGrid();
+}
+var seeker=null;
+function createSeeker(){return{x:W*0.2+Math.random()*W*0.6,y:H*0.3,heading:Math.random()*Math.PI*2,speed:1.8,turnRate:0.45,noiseOffset:Math.random()*1000,glowRadius:80,trail:[]};}
+var currentT=0,mouse={x:-9999,y:-9999,active:false,lastMoveTime:0};
+var sY=0,lastSY=0,smoothSV=0;
+var ringPulses=[],shockwaves=[],seekerFoundMouse=false;
+var FOUND_RADIUS=25,FOUND_COOLDOWN=3,lastFoundTime=-999,seekBoost=0;
+var orbiting=false,orbitCenter={x:0,y:0},orbitAngle=0,orbitSwept=0;
+var ORBIT_RADIUS=40,ORBIT_SPEED=1.8,orbitArcTarget=0;
+document.addEventListener('mousemove',function(e){mouse.x=e.clientX;mouse.y=e.clientY+sY;mouse.active=true;mouse.lastMoveTime=currentT;seekerFoundMouse=false;orbiting=false;});
+document.addEventListener('mouseleave',function(){mouse.active=false;seekerFoundMouse=false;});
+window.addEventListener('scroll',function(){sY=window.scrollY;if(mouse.active)mouse.y+=(sY-lastSY);},{passive:true});
+resize();seeker=createSeeker();window.addEventListener('resize',resize);
+function breathe(t){var ph=((t*0.14)%1+1)%1;return smoothstep(0,0.3,ph)*(1-smoothstep(0.3,1,ph))*1.7;}
+function heartbeat(t){var ph=((t*0.85)%1+1)%1;return Math.exp(-Math.pow((ph-0.12)*9,2))+Math.exp(-Math.pow((ph-0.28)*11,2))*0.5;}
+function edgeFactor(docX){var cx=W/2,dx=Math.abs(docX-cx);return 0.15+smoothstep(0,cx*0.7,dx)*0.85;}
+var ACTIVATION_DECAY=0.985,TRAIL_LEN=250;
+var hid=false;document.addEventListener('visibilitychange',function(){hid=document.hidden;});
+function draw(ts){
+  requestAnimationFrame(draw);if(hid)return;
+  var t=ts*0.001;currentT=t;ctx.clearRect(0,0,W,H);
+  var rawVel=sY-lastSY;smoothSV+=(rawVel-smoothSV)*(Math.abs(rawVel)>Math.abs(smoothSV)?0.3:0.04);lastSY=sY;
+  var br=breathe(t),hb=heartbeat(t);
+  var rhythmSpeed=0.7+br*0.4+hb*0.3,rhythmGlow=0.6+br*0.3+hb*0.2;
+  var s=seeker,viewTop=sY-100,viewBot=sY+H+100;
+  var steerNoise=noise2D(s.x*0.003+s.noiseOffset+t*0.08,s.y*0.003+t*0.06);
+  var courseChange=noise2D(s.x*0.001+s.noiseOffset+500,t*0.2);
+  var sharpTurn=Math.abs(courseChange)>0.6?courseChange*1.5:0;
+  s.heading+=(steerNoise*s.turnRate+sharpTurn*0.3)/60*3;
+  var viewCenterY=sY+H/2,dyToView=viewCenterY-s.y,dxToCenter=W/2-s.x;
+  var distToView=Math.sqrt(dxToCenter*dxToCenter+dyToView*dyToView);
+  if(distToView>H*0.6){var toView=Math.atan2(dyToView,dxToCenter);var diff=toView-s.heading;while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;s.heading+=diff*0.015;}
+  var seeking=false;
+  if(orbiting){
+    var step=ORBIT_SPEED/ORBIT_RADIUS;orbitAngle+=step;orbitSwept+=step;
+    s.x=orbitCenter.x+Math.cos(orbitAngle)*ORBIT_RADIUS;s.y=orbitCenter.y+Math.sin(orbitAngle)*ORBIT_RADIUS;
+    s.heading=orbitAngle+Math.PI*0.5;
+    if(orbitSwept>=orbitArcTarget){orbiting=false;seekerFoundMouse=true;}
+  }else if(mouse.active&&!seekerFoundMouse){
+    var idleSec=t-mouse.lastMoveTime,idleFactor=smoothstep(0,2.5,idleSec);
+    var attractRange=400+idleFactor*1200,baseStrength=0.02+idleFactor*0.12;
+    var mdx=mouse.x-s.x,mdy=mouse.y-s.y,md=Math.sqrt(mdx*mdx+mdy*mdy);
+    if(md>5){var proximity=Math.max(0,1-md/attractRange);var toMouse=Math.atan2(mdy,mdx);var diff=toMouse-s.heading;while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;s.heading+=diff*baseStrength*proximity;}
+    seeking=idleFactor>0.1&&md<attractRange;
+    if(md<FOUND_RADIUS&&(t-lastFoundTime)>FOUND_COOLDOWN){lastFoundTime=t;ringPulses.push({x:mouse.x,y:mouse.y,birth:t});shockwaves.push({x:mouse.x,y:mouse.y,birth:t});orbiting=true;orbitCenter.x=mouse.x;orbitCenter.y=mouse.y;orbitAngle=Math.atan2(s.y-mouse.y,s.x-mouse.x);orbitSwept=0;orbitArcTarget=(Math.PI/6)+Math.random()*(Math.PI*4/3);}
+  }
+  var seekTarget=(seeking||orbiting)?1.8:0;seekBoost+=(seekTarget-seekBoost)*((seeking||orbiting)?0.03:0.008);
+  if(!orbiting){
+    s.heading+=smoothSV*0.002;
+    var approachBrake=1;
+    if(seeking&&mouse.active){var mdx2=mouse.x-s.x,mdy2=mouse.y-s.y,md2=Math.sqrt(mdx2*mdx2+mdy2*mdy2);if(md2<150)approachBrake=0.3+0.7*(md2/150);}
+    var speed=s.speed*rhythmSpeed*(1+seekBoost)*approachBrake;s.x+=Math.cos(s.heading)*speed;s.y+=Math.sin(s.heading)*speed;
+  }
+  if(s.x<20){s.x=20;s.heading=Math.PI-s.heading;}if(s.x>W-20){s.x=W-20;s.heading=Math.PI-s.heading;}
+  if(s.y<20){s.y=20;s.heading=-s.heading;}if(s.y>pageH-20){s.y=pageH-20;s.heading=-s.heading;}
+  s.trail.push({x:s.x,y:s.y,t:t});if(s.trail.length>TRAIL_LEN)s.trail.shift();
+  var glowR=s.glowRadius*rhythmGlow,glowR2=glowR*glowR;
+  for(var i=0;i<grid.length;i++){var g=grid[i];if(g.y<s.y-glowR||g.y>s.y+glowR)continue;var dx=g.x-s.x,dy=g.y-s.y,d2=dx*dx+dy*dy;if(d2<glowR2){var dist=Math.sqrt(d2),influence=1-dist/glowR,activation=influence*influence;if(activation>g.activation)g.activation=activation;}}
+  for(var wi=shockwaves.length-1;wi>=0;wi--){var sw=shockwaves[wi];var age=t-sw.birth;if(age>6){shockwaves.splice(wi,1);continue;}var waveRadius=age*250,waveWidth=120+age*40,waveFade=Math.max(0,1-age/6),intensity=waveFade*waveFade*0.9;for(var i=0;i<grid.length;i++){var g=grid[i];var dx=g.x-sw.x,dy=g.y-sw.y,dist=Math.sqrt(dx*dx+dy*dy),fromRing=Math.abs(dist-waveRadius);if(fromRing<waveWidth){var ringProx=1-fromRing/waveWidth,act=ringProx*ringProx*intensity;if(act>g.activation)g.activation=act;}}}
+  for(var i=0;i<grid.length;i++)grid[i].activation*=ACTIVATION_DECAY;
+  var menuOpen=document.body.getAttribute('data-menu-open')==='true';
+  var baseMult=menuOpen?3.5:1,actMult=menuOpen?2.2:1;
+  for(var i=0;i<grid.length;i++){var g=grid[i];if(g.y<viewTop||g.y>viewBot)continue;var ef=edgeFactor(g.x),act=g.activation;var baseAlpha=0.02*ef*baseMult,actAlpha=act*0.3*ef*actMult,alpha=baseAlpha+actAlpha;if(alpha<0.003)continue;var baseSize=0.8+ef*0.5,actSize=act*2.2,size=baseSize+actSize,screenY=g.y-sY;var c=themeColor(g.hue,act);ctx.beginPath();ctx.arc(g.x,screenY,Math.max(0.3,size),0,Math.PI*2);ctx.fillStyle='rgba('+c[0]+','+c[1]+','+c[2]+','+alpha+')';ctx.fill();if(act>0.15){var glowAlpha=(act-0.15)*0.12*ef*(menuOpen?1.5:1);ctx.beginPath();ctx.arc(g.x,screenY,size*3,0,Math.PI*2);ctx.fillStyle='rgba('+c[0]+','+c[1]+','+c[2]+','+glowAlpha+')';ctx.fill();}}
+  var trail=s.trail;var tc=trailColor();
+  for(var i=0;i<trail.length;i++){var tp=trail[i];if(tp.y<viewTop||tp.y>viewBot)continue;var ef=edgeFactor(tp.x),progress=i/trail.length,fade=progress*progress;var age=t-tp.t,ageFade=Math.max(0,1-age*0.3),alpha=fade*ageFade*0.16*ef;if(alpha<0.002)continue;var size=0.8+fade*1.4,screenY=tp.y-sY;ctx.beginPath();ctx.arc(tp.x,screenY,size,0,Math.PI*2);ctx.fillStyle='rgba('+tc[0]+','+tc[1]+','+tc[2]+','+alpha+')';ctx.fill();}
+  var headScreenY=s.y-sY;
+  if(headScreenY>-50&&headScreenY<H+50){var hef=edgeFactor(s.x),headAlpha=0.4*hef*rhythmGlow,headSize=3+hb*2;var hc=headColor(),tc2=trailColor();ctx.beginPath();ctx.arc(s.x,headScreenY,headSize,0,Math.PI*2);ctx.fillStyle='rgba('+hc[0]+','+hc[1]+','+hc[2]+','+headAlpha+')';ctx.fill();var bloomSize=headSize*6;var grad=ctx.createRadialGradient(s.x,headScreenY,0,s.x,headScreenY,bloomSize);grad.addColorStop(0,'rgba('+hc[0]+','+hc[1]+','+hc[2]+','+(headAlpha*0.4)+')');grad.addColorStop(0.35,'rgba('+tc2[0]+','+tc2[1]+','+tc2[2]+','+(headAlpha*0.12)+')');grad.addColorStop(1,'rgba('+tc2[0]+','+tc2[1]+','+tc2[2]+',0)');ctx.beginPath();ctx.arc(s.x,headScreenY,bloomSize,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();}
+  var rpc=headColor();
+  for(var i=ringPulses.length-1;i>=0;i--){var rp=ringPulses[i];var age=t-rp.birth;if(age>2.5){ringPulses.splice(i,1);continue;}var rpScreenY=rp.y-sY;if(rpScreenY<-200||rpScreenY>H+200)continue;var expand=age*80,fade=Math.max(0,1-age/2.5),ringAlpha=fade*fade*0.35;ctx.beginPath();ctx.arc(rp.x,rpScreenY,expand,0,Math.PI*2);ctx.strokeStyle='rgba('+rpc[0]+','+rpc[1]+','+rpc[2]+','+ringAlpha+')';ctx.lineWidth=Math.max(0.5,2.5-age*0.8);ctx.stroke();}
+}
+requestAnimationFrame(draw);
+})();</script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

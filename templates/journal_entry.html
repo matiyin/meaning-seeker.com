@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}{% if meta.title %}{{ meta.title }} — Meaning Seeker{% else %}Cycle {{ cycle }} — Meaning Seeker{% endif %}{% endblock %}
+{% block description %}{{ meta.excerpt[:160] if meta.excerpt else 'A cycle of inquiry in the Meaning Seeker project.' }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a href="/journal" class="back-link">← All entries</a>
+
+  <div class="entry-header">
+    <div class="entry-meta-row">
+      <span class="badge" data-mode="{{ meta.mode }}">{{ meta.mode }}</span>
+      <span>Cycle {{ cycle }}</span>
+      {% if meta.date %}<span>{{ meta.date }}</span>{% endif %}
+      {% if meta.tokens_total %}<span>{{ '{:,}'.format(meta.tokens_total) }} tokens</span>{% endif %}
+    </div>
+    <h1 class="entry-title">{% if meta.title %}{{ meta.title }}{% else %}Cycle {{ cycle }}{% endif %}</h1>
+  </div>
+
+  <!-- Social output callout -->
+  {% set social_output = cycle_record.get('social_output') if cycle_record else None %}
+  {% if social_output %}
+  <blockquote class="markdown-body" style="margin-bottom:32px">
+    <p>{{ social_output }}</p>
+  </blockquote>
+  {% endif %}
+
+  <!-- Main body -->
+  <div class="markdown-body">
+    {{ body_html | safe }}
+  </div>
+
+  <!-- Prev/next navigation -->
+  <div class="nav-pair">
+    <div class="nav-pair-row">
+      {% if prev_meta %}
+      <a href="/journal/{{ prev_meta.cycle }}" class="nav-arrow">
+        <span class="nav-arrow-label">← Older</span>
+        <span class="nav-arrow-top">
+          <span class="nav-split-badge">
+            <span class="split-cycle">{{ '%06d' % prev_meta.cycle }}</span>
+            <span class="split-phase" data-mode="{{ prev_meta.mode }}">{{ prev_meta.mode }}</span>
+          </span>
+        </span>
+        <span class="nav-arrow-title">{{ prev_meta.title or ('Cycle ' ~ prev_meta.cycle) }}</span>
+      </a>
+      {% else %}
+      <span class="nav-arrow nav-arrow--empty">
+        <span class="nav-arrow-label">← Older</span>
+      </span>
+      {% endif %}
+
+      {% if next_meta %}
+      <a href="/journal/{{ next_meta.cycle }}" class="nav-arrow nav-arrow--next">
+        <span class="nav-arrow-label">Newer →</span>
+        <span class="nav-arrow-top">
+          <span class="nav-split-badge">
+            <span class="split-cycle">{{ '%06d' % next_meta.cycle }}</span>
+            <span class="split-phase" data-mode="{{ next_meta.mode }}">{{ next_meta.mode }}</span>
+          </span>
+        </span>
+        <span class="nav-arrow-title">{{ next_meta.title or ('Cycle ' ~ next_meta.cycle) }}</span>
+      </a>
+      {% else %}
+      <span class="nav-arrow nav-arrow--next nav-arrow--empty">
+        <span class="nav-arrow-label">Newer →</span>
+      </span>
+      {% endif %}
+    </div>
+    <div style="text-align:center">
+      <a href="/journal" class="nav-all">All entries</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

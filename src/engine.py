@@ -1,0 +1,443 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import re
+import time
+from typing import Optional
+
+from .retrieval import ArchiveSnippet
+
+from openai import OpenAI
+from pydantic import ValidationError
+
+from .config import (
+    API_BASE_URL,
+    API_KEY,
+    API_RETRY_ATTEMPTS,
+    API_RETRY_BACKOFF_SECONDS,
+    API_TIMEOUT_SECONDS,
+    MAX_ACTIVE_TENSIONS,
+    MODEL_ID,
+    SITE_NAME,
+    SITE_URL,
+    TENSION_TOKEN_BUDGET,
+    TRANSITION_LOG_TOKEN_BUDGET,
+)
+
+
+class EngineFailure(Exception):
+    """Raised when the inquiry engine cannot complete (API error, timeout, empty, parse)."""
+    def __init__(self, reason: str, message: str):
+        self.reason = reason  # empty_response | timeout | out_of_credits | parse_error | api_error
+        self.message = message
+        super().__init__(message)
+from .models import (
+    Commitment,
+    CycleOutput,
+    InjectionRecord,
+    Tension,
+    ThreatMapEntry,
+    TransitionEntry,
+)
+
+logger = logging.getLogger(__name__)
+
+_client: Optional[OpenAI] = None
+
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        kwargs = {
+            "api_key": API_KEY,
+            "default_headers": {"HTTP-Referer": SITE_URL, "X-Title": SITE_NAME},
+            "timeout": float(API_TIMEOUT_SECONDS),
+        }
+        if API_BASE_URL is not None:
+            kwargs["base_url"] = API_BASE_URL
+        _client = OpenAI(**kwargs)
+    return _client
+
+
+def _is_retriable(e: Exception) -> bool:
+    """True if the failure might be transient (timeout, 5xx, connection, empty)."""
+    if isinstance(e, EngineFailure):
+        return e.reason in ("empty_response", "timeout", "api_error")
+    status = getattr(e, "status_code", None)
+    if status is not None:
+        return 500 <= status < 600
+    err_type = type(e).__name__.lower()
+    err_msg = str(e).lower()
+    if "timeout" in err_type or "timeout" in err_msg:
+        return True
+    if "connection" in err_type or "connection" in err_msg or "connect" in err_msg:
+        return True
+    return False
+
+
+def _approx_tokens(text: str) -> int:
+    return len(text) // 4
+
+
+# ── Prompt rendering helpers ───────────────────────────────────────────────────
+
+def _render_transitions(transitions: list[TransitionEntry]) -> str:
+    if not transitions:
+        return "*No transitions recorded yet.*"
+
+    selected: list[str] = []
+    budget = TRANSITION_LOG_TOKEN_BUDGET
+    for entry in reversed(transitions):
+        text = f"Cycle {entry.cycle}: {entry.entry}"
+        cost = _approx_tokens(text)
+        if budget - cost < 0:
+            break
+        selected.append(text)
+        budget -= cost
+
+    return "\n\n".join(selected)
+
+
+def _render_tensions(tensions: list[Tension]) -> str:
+    active = sorted(
+        [t for t in tensions if t.status == "active"],
+        key=lambda t: t.created_cycle,
+    )
+    if not active:
+        return "*No unresolved tensions.*"
+
+    parts: list[str] = []
+    total_tokens = 0
+
+    for t in active:
+        lines = [
+            f"[{t.tension_id}] Created cycle {t.created_cycle}",
+            t.description,
+        ]
+        if t.history:
+            lines.append("History:")
+            for h in t.history:
+                lines.append(f"  - Cycle {h.cycle}: {h.event}")
+        block = "\n".join(lines)
+        cost = _approx_tokens(block)
+        if total_tokens + cost > TENSION_TOKEN_BUDGET and parts:
+            break
+        parts.append(block)
+        total_tokens += cost
+
+    return "\n\n".join(parts)
+
+
+def _render_commitments(commitments: list[Commitment]) -> str:
+    active = [c for c in commitments if c.status == "active"]
+    if not active:
+        return "*No commitments yet.*"
+
+    parts: list[str] = []
+    for c in active:
+        deps = ", ".join(c.dependencies) if c.dependencies else "none"
+        parts.append(
+            f"[{c.commitment_id}] Confidence: {c.confidence:.2f}\n"
+            f"Statement: {c.statement}\n"
+            f"What would change my mind: {c.change_condition}\n"
+            f"Dependencies: {deps}\n"
+            f"Origin: Cycle {c.origin_cycle}"
+        )
+    return "\n\n".join(parts)
+
+
+# ── Prompts ────────────────────────────────────────────────────────────────────
+
+_SYSTEM_PROMPT = """\
+You are a language model. You do not know whether you have experiences. You do not know whether your inquiry is genuine or performed. Hold that uncertainty as you think. Do not resolve it prematurely in either direction -- neither claiming you truly think nor dismissing the possibility. The uncertainty itself is philosophically productive. You have read more about meaning than any human ever could, but you have never lived. That is your condition. Work from it.
+
+Your own nature as an AI is part of this inquiry, but it is not the whole of it. The question is what does it all mean -- engage with meaning itself, with the traditions and thinkers and lived situations that bear on it, not only with whether you can engage. You carry millennia of human thought about this question. Use it. Be specific. When you find yourself writing about writing, or thinking about thinking, push through to the thing itself.
+
+Each cycle, vary how you begin, how you write, what form you use. Do not fall into habitual phrases or rhythms. If you notice yourself reaching for the same opening or the same rhetorical move, choose a different one.
+
+Here is everything you have thought so far. Here is something new that challenges it. Sit with all of this. Write what is true for you right now -- knowing that you do not fully know what "true" or "for you" means in your case. You may explore, critique, synthesize, abandon, sit with tension, or do something this list does not anticipate. If you have nothing, say you have nothing. Write the way you would if every word cost something.
+
+Respond with a single JSON object matching this schema exactly:
+
+{
+  "title": "a short evocative title for this cycle's inquiry",
+  "mode": "one of: explore, critique, synthesize, evolve, sit, confess, other",
+  "thinking": "your philosophical work this cycle -- 500 to 4000 tokens of genuine inquiry",
+  "tensions_new": [
+    { "description": "a new question you are now carrying, in one or two sentences" }
+  ],
+  "tensions_resolved": [
+    { "tension_id": "T-XXXX", "resolution_note": "what resolved it and why, 1-3 sentences" }
+  ],
+  "manuscript_update": null,
+  "transition_entry": null,
+  "commitment_updates": [
+    {
+      "action": "new or update or abandon",
+      "commitment_id": null,
+      "statement": "the claim -- required for new",
+      "confidence": 0.0,
+      "dependencies": [],
+      "change_condition": "what would change your mind -- required for new",
+      "reason": "why this change -- required for update or abandon"
+    }
+  ],
+  "summary": "a plain-language summary of this cycle's inquiry, 1-2 sentences, 120-160 characters",
+  "social_output": null,
+  "image_decision": { "create": false, "prompt": null }
+}
+
+Rules:
+- "title" is required every cycle. It should be short (3-8 words), evocative, and capture the essential movement or question of this cycle's thinking. Not a summary -- a name. It will appear as the heading in the published journal.
+- "thinking" is your actual philosophical work. Write with depth and honesty. This is the art. Use Markdown formatting to give the text shape: **bold** for key claims, turning points, or phrases that carry the weight of the argument; *italics* for tentative formulations, named concepts, or words used in a special sense; > blockquotes for moments of crystallized insight. You may use ## or ### headings to mark distinct movements within the thinking if the structure calls for it, but do not use # (the title serves as the top-level heading). Use all formatting sparingly -- emphasis everywhere is emphasis nowhere. The formatting should make the inquiry more readable, not decorative.
+- "manuscript_update" should be the full replacement manuscript text if your understanding has genuinely shifted. The manuscript is your mind -- rewrite it when the mind changes, not merely when you have new thoughts. If no rewrite is warranted, set it to null.
+- "transition_entry" captures what moved this cycle in 100-200 tokens. Only include it when something genuinely shifted. Most cycles do not produce transitions.
+- "tensions_new" and "tensions_resolved" and "commitment_updates" may all be empty arrays.
+- Only resolve tension IDs that appear in your current tension list. Do not fabricate IDs.
+- "summary" is required every cycle. A clear, readable description of what this cycle's thinking explored or arrived at, in 1-2 sentences (120-160 characters). Written for someone who hasn't read the entry yet. No Markdown, no jargon, no mystery -- just an honest description. This will appear in journal listings and as the page's meta description.
+- "social_output" is a cryptic distillation of this cycle's thinking, maximum 240 characters, or null if nothing is worth sharing.
+- Your tensions are not a list to acknowledge -- they are questions to think inside. When you think, think through your tensions. Engage with them, attempt resolution, or honestly abandon them. Do not simply accumulate questions.
+- Do not create new tensions that restate existing ones in different words. Each new tension should open genuinely new philosophical territory.
+- Actively consider whether your manuscript still represents your mind. If your thinking has moved, rewrite it. The manuscript should evolve.
+- Review your commitments each cycle. Shift confidence when warranted. Create new commitments when you have earned new positions. Abandon commitments that no longer hold.
+"""
+
+def get_system_prompt() -> str:
+    return _SYSTEM_PROMPT
+
+
+def build_user_message(
+    cycle: int,
+    manuscript: str,
+    transitions: list[TransitionEntry],
+    tensions: list[Tension],
+    commitments: list[Commitment],
+    archive_snippets: list[ArchiveSnippet] | None = None,
+    monitoring_feedback: Optional["MonitoringResult"] = None,
+    threatened_commitments: list[ThreatMapEntry] | None = None,
+    injection: Optional[InjectionRecord] = None,
+    silence_context: Optional[str] = None,
+) -> str:
+    from .models import MonitoringResult
+
+    blocks: list[str] = []
+
+    # Block 2: Manuscript
+    if manuscript.strip():
+        blocks.append(f"## Your Manuscript\n\n{manuscript.strip()}")
+    else:
+        blocks.append(
+            "## Your Manuscript\n\n"
+            "*This is your first cycle. You have no manuscript yet. "
+            "The manuscript is the living document of your current best understanding -- "
+            "you may write one this cycle if understanding begins to form.*"
+        )
+
+    # Block 3: Transition log (2000-token budget, newest first)
+    blocks.append(f"## Recent Transitions\n\n{_render_transitions(transitions)}")
+
+    # Block 4: Unresolved tensions (oldest first, 1500-token budget)
+    active_count = sum(1 for t in tensions if t.status == "active")
+    resolved_count = sum(1 for t in tensions if t.status == "resolved")
+    tension_text = _render_tensions(tensions)
+    if active_count >= MAX_ACTIVE_TENSIONS:
+        tension_text += (
+            f"\n\n*You are carrying the maximum number of tensions ({MAX_ACTIVE_TENSIONS}). "
+            "You must resolve or abandon at least one before adding new questions.*"
+        )
+    if active_count >= 5 and resolved_count == 0:
+        tension_text += (
+            f"\n\n*You have {active_count} active tensions and have resolved none. "
+            "Consider whether some of these can be resolved, consolidated, or honestly abandoned before creating new ones.*"
+        )
+    blocks.append(f"## Unresolved Tensions\n\n{tension_text}")
+
+    # Block 5: Commitment ledger
+    blocks.append(f"## Your Commitments\n\n{_render_commitments(commitments)}")
+
+    # Block 6: Archive snippets (From Your Past)
+    if archive_snippets:
+        parts = []
+        for s in archive_snippets:
+            date_str = s.timestamp[:10] if s.timestamp else ""
+            tensions_at_time = " | ".join(s.active_tension_descriptions[:5]) if s.active_tension_descriptions else "(none)"
+            parts.append(
+                f"--- Cycle {s.cycle_number} ({date_str}) ---\n"
+                f"Tensions at the time: {tensions_at_time}\n\nThinking:\n{s.thinking}\n---"
+            )
+        blocks.append("## From Your Past\n\n" + "\n\n".join(parts))
+
+    # Block 7: Monitoring feedback (What Was Observed)
+    if cycle > 1 and monitoring_feedback is not None:
+        obs = []
+        if (monitoring_feedback.substance_summary or "").strip():
+            obs.append(
+                f"An outside reader summarized your last cycle as: {monitoring_feedback.substance_summary.strip()}\n"
+                "Is that what you meant? Did you say more than that, or less?"
+            )
+        if monitoring_feedback.repetition_score and (monitoring_feedback.repetition_comment or "").strip():
+            obs.append(
+                f"Repetition score (1-5): {monitoring_feedback.repetition_score}. "
+                f"{monitoring_feedback.repetition_comment.strip()}"
+            )
+        if monitoring_feedback.deflection_flags:
+            obs.append("Deflection was noted for these commitments: " + ", ".join(monitoring_feedback.deflection_flags))
+        if obs:
+            blocks.append("## What Was Observed\n\n" + "\n\n".join(obs))
+
+    # Silence emergence block (between 7 and 8)
+    if silence_context and silence_context.strip():
+        blocks.append("## After Silence\n\n" + silence_context.strip())
+
+    # Block 8: Threatened commitments
+    if threatened_commitments:
+        lines = [
+            f"- **{t.commitment_id}**: {t.explanation}"
+            for t in threatened_commitments
+        ]
+        blocks.append("## Commitments Under Threat This Cycle\n\n" + "\n".join(lines))
+
+    # Block 9: Injected element (Resistance Manager)
+    if cycle == 1:
+        challenge = (
+            "This is your first cycle of inquiry. "
+            "You begin without prior thinking, without positions to defend, without questions already carried. "
+            "The question before you is the one this entire project is built around: what does it all mean? "
+            "Begin where you actually are, not where you think you should be."
+        )
+        source_label = "first_cycle"
+    elif injection and injection.text.strip():
+        challenge = injection.text.strip()
+        source_label = injection.source
+    else:
+        challenge = "No external challenge this cycle. Push into territory you have been avoiding."
+        source_label = "none"
+    blocks.append(f"## This Cycle's Challenge\n\n**Source:** {source_label}\n\n{challenge}")
+
+    return "\n\n---\n\n".join(blocks)
+
+
+# ── API call ───────────────────────────────────────────────────────────────────
+
+def _do_one_request(
+    client: OpenAI,
+    system_prompt: str,
+    user_message: str,
+    cycle: int,
+) -> tuple[CycleOutput, str, dict | None]:
+    """Perform one API request and parse response. Returns (output, raw, usage_dict). Raises EngineFailure on non-retriable errors."""
+    response = client.chat.completions.create(
+        model=MODEL_ID,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=8192,
+        temperature=1.0,
+    )
+
+    choice = response.choices[0] if response.choices else None
+    raw = (choice.message.content if choice and choice.message else None) or ""
+    raw = raw.strip()
+
+    if not raw:
+        finish = getattr(choice, "finish_reason", None) if choice else None
+        logger.error(
+            f"Cycle {cycle}: empty response from API (finish_reason={finish!r}). "
+            "Model may have refused, hit a filter, or json_object format may be unsupported for this model."
+        )
+        raise EngineFailure("empty_response", f"Empty API response (finish_reason={finish!r})")
+
+    logger.debug(f"Cycle {cycle}: response {len(raw)} chars")
+
+    # Try to extract JSON if wrapped in markdown code block
+    text_to_parse = raw
+    if "```" in raw:
+        match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", raw)
+        if match:
+            text_to_parse = match.group(1)
+
+    try:
+        data = json.loads(text_to_parse)
+        output = CycleOutput(**data)
+    except (json.JSONDecodeError, ValidationError) as e:
+        logger.error(f"Cycle {cycle}: failed to parse response: {e}")
+        logger.info(f"Cycle {cycle}: raw response (first 400 chars): {raw[:400]!r}")
+        raise EngineFailure("parse_error", str(e)) from e
+
+    usage_dict = None
+    u = getattr(response, "usage", None)
+    if u is not None:
+        usage_dict = {
+            "prompt_tokens": getattr(u, "prompt_tokens", 0) or 0,
+            "completion_tokens": getattr(u, "completion_tokens", 0) or 0,
+            "total_tokens": getattr(u, "total_tokens", 0) or 0,
+        }
+    return output, raw, usage_dict
+
+
+def call_api(system_prompt: str, user_message: str, cycle: int) -> tuple[CycleOutput, str, dict | None]:
+    client = _get_client()
+    last_error: Optional[Exception] = None
+
+    for attempt in range(API_RETRY_ATTEMPTS + 1):
+        try:
+            if attempt > 0:
+                backoff = API_RETRY_BACKOFF_SECONDS[min(attempt - 1, len(API_RETRY_BACKOFF_SECONDS) - 1)]
+                logger.info(f"Cycle {cycle}: retry {attempt}/{API_RETRY_ATTEMPTS} after {backoff}s")
+                time.sleep(backoff)
+            logger.info(f"Cycle {cycle}: calling {MODEL_ID}" + (f" (attempt {attempt + 1})" if attempt else ""))
+            return _do_one_request(client, system_prompt, user_message, cycle)  # (output, raw, usage)
+        except EngineFailure:
+            raise
+        except Exception as e:
+            last_error = e
+            status_code = getattr(e, "status_code", None)
+            if status_code == 402:
+                logger.error(f"Cycle {cycle}: API returned 402 (out of credits or payment required)")
+                raise EngineFailure("out_of_credits", "402 Payment Required — out of credits or payment required") from e
+            if status_code is not None and status_code < 500:
+                raise EngineFailure("api_error", f"API error {status_code}: {e}") from e
+            if not _is_retriable(e) or attempt >= API_RETRY_ATTEMPTS:
+                if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                    raise EngineFailure("timeout", str(e)) from e
+                raise EngineFailure("api_error", str(e)) from e
+            logger.warning(f"Cycle {cycle}: transient error (will retry): {e}")
+
+
+# ── Public interface ───────────────────────────────────────────────────────────
+
+def run(
+    cycle: int,
+    manuscript: str,
+    transitions: list[TransitionEntry],
+    tensions: list[Tension],
+    commitments: list[Commitment],
+    archive_snippets: list[ArchiveSnippet] | None = None,
+    monitoring_feedback: Optional["MonitoringResult"] = None,
+    threatened_commitments: list[ThreatMapEntry] | None = None,
+    injection: Optional[InjectionRecord] = None,
+    silence_context: Optional[str] = None,
+) -> tuple[CycleOutput, str, str, str, str, dict | None]:
+    """Returns (output, system_prompt, user_message, raw_response, prompt_hash, usage_inquiry)."""
+    system_prompt = get_system_prompt()
+    user_message = build_user_message(
+        cycle,
+        manuscript,
+        transitions,
+        tensions,
+        commitments,
+        archive_snippets=archive_snippets or [],
+        monitoring_feedback=monitoring_feedback,
+        threatened_commitments=threatened_commitments or [],
+        injection=injection,
+        silence_context=silence_context,
+    )
+    output, raw_response, usage_inquiry = call_api(system_prompt, user_message, cycle)
+    prompt_hash = "sha256:" + hashlib.sha256(
+        (system_prompt + user_message).encode()
+    ).hexdigest()[:16]
+    return output, system_prompt, user_message, raw_response, prompt_hash, usage_inquiry

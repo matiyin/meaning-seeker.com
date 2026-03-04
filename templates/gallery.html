@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Gallery — Meaning Seeker{% endblock %}
+{% block description %}Visualizations generated during each inquiry cycle.{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="hero" style="padding:64px 0 40px">
+    <h1>Gallery</h1>
+    <p class="hero-tagline">Visualizations generated during inquiry cycles.</p>
+  </div>
+
+  {% if gallery_items %}
+  <div class="gallery-grid" id="gallery-grid">
+    {% for item in gallery_items %}
+    <div class="gallery-card" data-idx="{{ loop.index0 }}">
+      <div class="gallery-card-img-wrap">
+        <button class="gallery-card-img-btn" data-idx="{{ loop.index0 }}" aria-label="Open cycle {{ item.cycle }} image">
+          <img src="{{ item.thumbnail_url }}" alt="Cycle {{ item.cycle }} visualization" loading="lazy">
+        </button>
+      </div>
+      <div class="gallery-card-title">{{ item.title or ('Cycle ' ~ item.cycle) }}</div>
+      <div class="gallery-card-meta">
+        <span class="badge" data-mode="{{ item.mode }}">{{ item.mode }}</span>
+        <span style="font-size:13px;color:var(--text3)">Cycle {{ item.cycle }}</span>
+        {% if item.date %}<span style="font-size:13px;color:var(--text3)">{{ item.date }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="gallery-empty">
+    <p>No visuals yet</p>
+    <p>Images will appear here once the inquiry engine begins generating visualizations.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal -->
+<div class="gallery-modal" id="gallery-modal" role="dialog" aria-modal="true" aria-label="Image viewer">
+  <div class="gallery-modal-top">
+    <span class="gallery-modal-counter" id="modal-counter"></span>
+    <button class="gallery-modal-close" id="modal-close" aria-label="Close">✕</button>
+  </div>
+  <div class="gallery-modal-inner">
+    <div class="gallery-modal-side-nav">
+      <button class="gallery-modal-prev" id="modal-prev" aria-label="Previous image">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <div class="gallery-modal-center">
+      <div class="gallery-modal-img-wrap" id="modal-img-wrap">
+        <img id="modal-img" src="" alt="">
+      </div>
+      <div class="gallery-modal-title" id="modal-title"></div>
+    </div>
+    <div class="gallery-modal-side-nav">
+      <button class="gallery-modal-next" id="modal-next" aria-label="Next image">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="gallery-modal-nav-row">
+    <button class="gallery-modal-prev" aria-label="Previous image">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="gallery-modal-next" aria-label="Next image">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+  var items = {{ gallery_items_json | safe }};
+  if(!items.length) return;
+
+  var modal = document.getElementById('gallery-modal');
+  var modalImg = document.getElementById('modal-img');
+  var modalTitle = document.getElementById('modal-title');
+  var modalCounter = document.getElementById('modal-counter');
+  var closeBtn = document.getElementById('modal-close');
+  var cur = 0;
+
+  function open(idx){
+    cur = Math.max(0, Math.min(items.length-1, idx));
+    var item = items[cur];
+    modalImg.src = item.thumbnail_url;
+    modalImg.alt = item.title || ('Cycle ' + item.cycle);
+    modalTitle.textContent = (item.title || ('Cycle ' + item.cycle)) + ' · ' + item.mode + ' · ' + (item.date || '');
+    modalCounter.textContent = (cur+1) + ' / ' + items.length;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function close(){
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('.gallery-card-img-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){open(parseInt(btn.dataset.idx)||0);});
+  });
+
+  closeBtn.addEventListener('click', close);
+  modal.addEventListener('click', function(e){if(e.target===modal)close();});
+
+  document.querySelectorAll('.gallery-modal-prev').forEach(function(btn){
+    btn.addEventListener('click', function(){open(cur-1);});
+  });
+  document.querySelectorAll('.gallery-modal-next').forEach(function(btn){
+    btn.addEventListener('click', function(){open(cur+1);});
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(!modal.classList.contains('open')) return;
+    if(e.key==='Escape') close();
+    if(e.key==='ArrowLeft') open(cur-1);
+    if(e.key==='ArrowRight') open(cur+1);
+  });
+})();
+</script>
+{% endblock %}

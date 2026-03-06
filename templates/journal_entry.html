@@ -17,12 +17,19 @@
     <h1 class="entry-title">{% if meta.title %}{{ meta.title }}{% else %}Cycle {{ cycle }}{% endif %}</h1>
   </div>
 
-  <!-- Social output callout -->
+  <!-- TL;DR / social distillation callout -->
   {% set social_output = cycle_record.get('social_output') if cycle_record else None %}
   {% if social_output %}
-  <blockquote class="markdown-body" style="margin-bottom:32px">
-    <p>{{ social_output }}</p>
-  </blockquote>
+  <div class="entry-tldr" role="complementary" aria-label="Summary">
+    <span class="entry-tldr-label">TL;DR</span>
+    <p class="entry-tldr-text">{{ social_output }}</p>
+  </div>
+  {% endif %}
+
+  {% if meta.thumbnail_url %}
+  <div class="entry-hero-image-wrap">
+    <img src="{{ meta.thumbnail_url }}" alt="" class="entry-hero-image entry-hero-image-clickable" data-image-src="{{ meta.thumbnail_url }}" data-image-title="{{ meta.title or ('Cycle ' ~ cycle) }}">
+  </div>
   {% endif %}
 
   <!-- Main body -->
@@ -67,9 +74,18 @@
       </span>
       {% endif %}
     </div>
-    <div style="text-align:center">
-      <a href="/journal" class="nav-all">All entries</a>
-    </div>
+    <a href="/journal" class="back-link">All entries</a>
   </div>
 </div>
+{% block extra_scripts %}
+<script>
+(function(){
+  document.querySelectorAll('.entry-hero-image-clickable').forEach(function(el){
+    el.addEventListener('click', function(){
+      if(window.openImageModal) window.openImageModal(this.dataset.imageSrc, this.dataset.imageTitle || '');
+    });
+  });
+})();
+</script>
 {% endblock %}
+{% endblock content %}

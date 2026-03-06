@@ -3,9 +3,9 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from .config import DATA_DIR, API_PROVIDER, CYCLE_INTERVAL_SECONDS, MODEL_ID
+from .config import DATA_DIR, API_PROVIDER, CYCLE_INTERVAL_SECONDS, FORCE_IMAGE, MODEL_ID
 from . import engine, journal, ledger, memory, monitor, resistance, retrieval
-from .models import TransitionEntry
+from .models import ImageDecision, TransitionEntry
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +222,12 @@ def run_cycle() -> bool:
     }
     # ── Phase C: post-cycle steps ─────────────────────────────────────────────
     # 3. Image generation (before journal render so image reference can be embedded)
+    if FORCE_IMAGE and (not output.image_decision.create or not output.image_decision.prompt):
+        fallback = (output.summary or manuscript.strip() or "Contemplative inquiry into meaning.").strip()
+        if len(fallback) > 400:
+            fallback = fallback[:397] + "..."
+        output.image_decision = ImageDecision(create=True, prompt=fallback)
+        logger.info("Cycle %s: FORCE_IMAGE=1, using prompt: %s", cycle, fallback[:80])
     image_path = None
     if output.image_decision.create and output.image_decision.prompt:
         try:

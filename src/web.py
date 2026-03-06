@@ -34,15 +34,51 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from .config import (
+    BLUESKY_PROFILE_URL,
     DATA_DIR,
+    INSTAGRAM_PROFILE_URL,
     SITE_NAME,
     SITE_URL,
     SUBMISSION_MAX_LENGTH,
     SUBMISSION_MIN_LENGTH,
     SUBMISSION_RATE_LIMIT,
+    THREADS_PROFILE_URL,
+    X_PROFILE_URL,
 )
 
 logger = logging.getLogger(__name__)
+
+BLOCKED_HASHES_PATH = DATA_DIR / "injections" / "blocked_ip_hashes.json"
+_blocked_hashes: set[str] | None = None
+
+
+def _load_blocked_hashes() -> set[str]:
+    """Load set of blocked IP hashes (lazy, cached)."""
+    global _blocked_hashes
+    if _blocked_hashes is not None:
+        return _blocked_hashes
+    _blocked_hashes = set()
+    if BLOCKED_HASHES_PATH.exists():
+        try:
+            data = json.loads(BLOCKED_HASHES_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                _blocked_hashes = set(data)
+            elif isinstance(data, dict) and "hashes" in data:
+                _blocked_hashes = set(data["hashes"])
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Could not load blocked IP hashes: %s", e)
+    return _blocked_hashes
+
+
+def _add_blocked_hash(ip_hash: str) -> None:
+    """Add an IP hash to the blocklist and persist."""
+    hashes = _load_blocked_hashes()
+    hashes.add(ip_hash)
+    BLOCKED_HASHES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    BLOCKED_HASHES_PATH.write_text(
+        json.dumps(sorted(hashes), indent=0), encoding="utf-8"
+    )
+    logger.info("Blocked IP hash added to blocklist (harmful submission)")
 
 BASE = Path(__file__).parent.parent
 
@@ -69,6 +105,14 @@ if _assets_icons.exists():
     app.mount("/icons", StaticFiles(directory=str(_assets_icons)), name="icons")
 
 templates = Jinja2Templates(directory=str(_templates_dir))
+
+
+def _format_shift_desc(text: str) -> str:
+    """Wrap the single-quoted portion of a paradigm shift description in bold double quotes."""
+    return re.sub(r"'([^']+)'", r'<strong>"\1"</strong>', text)
+
+
+templates.env.filters["format_shift_desc"] = _format_shift_desc
 
 
 # ── Data helpers ───────────────────────────────────────────────────────────────
@@ -108,6 +152,7 @@ def _parse_journal_header(content: str) -> dict:
       # Title
       **Cycle N** · **Date:** YYYY-MM-DD · **Mode:** mode
       **Tokens:** ...
+      *Summary in italics.*   <- optional; used as card excerpt when present
       ---
       body...
     """
@@ -117,6 +162,7 @@ def _parse_journal_header(content: str) -> dict:
     date_str = ""
     mode = "other"
     tokens_total = 0
+    summary_line: str | None = None
 
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -140,6 +186,9 @@ def _parse_journal_header(content: str) -> dict:
                     tokens_total = int(tm.group(1).replace(",", ""))
                 except ValueError:
                     pass
+        elif stripped.startswith("*") and stripped.endswith("*") and len(stripped) > 2:
+            # Italic summary line (engine summary, 120–160 chars) — use for card excerpt
+            summary_line = stripped[1:-1].strip()
         elif stripped == "---":
             break
 
@@ -147,10 +196,13 @@ def _parse_journal_header(content: str) -> dict:
     sep = content.find("\n---\n")
     body = content[sep + 5:].strip() if sep != -1 else content
 
-    # Extract excerpt (~200 chars)
-    plain = re.sub(r"[#*_`>\[\]!]", "", body).replace("\n", " ").strip()
-    plain = re.sub(r"\s+", " ", plain)
-    excerpt = plain[:220] + ("…" if len(plain) > 220 else "")
+    # Excerpt: prefer parsed summary when present, else first ~220 chars of body
+    if summary_line and summary_line.strip():
+        excerpt = summary_line.strip()
+    else:
+        plain = re.sub(r"[#*_`>\[\]!]", "", body).replace("\n", " ").strip()
+        plain = re.sub(r"\s+", " ", plain)
+        excerpt = plain[:220] + ("…" if len(plain) > 220 else "")
 
     # Find image in body
     img_match = re.search(r"!\[[^\]]*\]\((/images/[^)]+)\)", body)
@@ -210,6 +262,29 @@ def _load_recent_cycle_records(n: int = 20) -> list[dict]:
     return records
 
 
+def _load_social_replies() -> list[dict]:
+    """Load collected social media replies (source x_reply) from quarantine, newest first."""
+    quarantine_dir = DATA_DIR / "injections" / "quarantine"
+    if not quarantine_dir.exists():
+        return []
+    replies = []
+    for path in quarantine_dir.glob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("source") == "x_reply":
+                replies.append({
+                    "text": data.get("text", ""),
+                    "timestamp": data.get("timestamp", ""),
+                    "source": "x_reply",
+                    "platform": "X",
+                    "submission_id": data.get("submission_id", ""),
+                })
+        except (json.JSONDecodeError, OSError):
+            continue
+    replies.sort(key=lambda r: r.get("timestamp", ""), reverse=True)
+    return replies
+
+
 def _render_md(text: str) -> str:
     """Render markdown to HTML with extras."""
     return md_lib.markdown(
@@ -251,6 +326,28 @@ async def home(request: Request):
     # Recent entries with excerpt for slider
     slider_entries = [j for j in journals[:10] if j.get("excerpt") or j.get("title")]
 
+    # Manuscript excerpt (first two substantive paragraphs) for home
+    manuscript_path = DATA_DIR / "manuscript.md"
+    manuscript_excerpt = ""
+    if manuscript_path.exists():
+        raw = manuscript_path.read_text(encoding="utf-8").strip()
+        paragraphs = [p.strip() for p in raw.split("\n\n") if p.strip()]
+        taken = []
+        for p in paragraphs:
+            if p.startswith("#"):
+                continue
+            taken.append(p)
+            if len(taken) >= 2:
+                break
+        if taken:
+            manuscript_excerpt = "\n\n".join(taken)
+            if len(manuscript_excerpt) > 900:
+                manuscript_excerpt = manuscript_excerpt[:897].rsplit(" ", 1)[0] + "…"
+        elif paragraphs:
+            manuscript_excerpt = paragraphs[0].lstrip("#").strip()[:500]
+
+    manuscript_excerpt_html = _render_md(manuscript_excerpt) if manuscript_excerpt else ""
+
     return templates.TemplateResponse("home.html", {
         "request": request,
         "active_nav": "home",
@@ -262,6 +359,8 @@ async def home(request: Request):
         "total_tokens": total_tokens,
         "latest_image": latest_image,
         "slider_entries": slider_entries,
+        "manuscript_excerpt": manuscript_excerpt,
+        "manuscript_excerpt_html": manuscript_excerpt_html,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })
@@ -288,7 +387,11 @@ async def journal_entry(request: Request, cycle: int):
 
     content = path.read_text(encoding="utf-8")
     meta = _parse_journal_header(content)
-    body_html = _render_md(meta["body_md"])
+    # When we show the entry image full-width above, omit it from the body to avoid duplicate
+    body_md = meta["body_md"]
+    if meta.get("thumbnail_url"):
+        body_md = re.sub(r"\n*!\[[^\]]*\]\([^)]+\)\n*", "\n\n", body_md, count=1).strip()
+    body_html = _render_md(body_md)
 
     # Load cycle record for social output, injection info
     cycle_record = _load_cycle_record(cycle)
@@ -325,20 +428,44 @@ async def journal_entry(request: Request, cycle: int):
     })
 
 
+@app.get("/manuscript", response_class=HTMLResponse)
+async def manuscript_page(request: Request):
+    manuscript_path = DATA_DIR / "manuscript.md"
+    text = manuscript_path.read_text(encoding="utf-8").strip() if manuscript_path.exists() else ""
+    body_html = _render_md(text) if text else ""
+    last_updated = None
+    if manuscript_path.exists():
+        mtime = manuscript_path.stat().st_mtime
+        dt = datetime.fromtimestamp(mtime, tz=timezone.utc)
+        last_updated = dt.strftime("%d %b %Y").lstrip("0")
+    return templates.TemplateResponse("manuscript.html", {
+        "request": request,
+        "active_nav": "manuscript",
+        "body_html": body_html,
+        "manuscript_last_updated": last_updated,
+        "site_url": SITE_URL,
+        "site_name": SITE_NAME,
+    })
+
+
 @app.get("/gallery", response_class=HTMLResponse)
 async def gallery(request: Request):
     journals = _list_journals()
-    gallery_items = [
-        {
+    gallery_items = []
+    for j in journals:
+        if not j.get("thumbnail_url"):
+            continue
+        cycle_record = _load_cycle_record(j["cycle"]) if j.get("cycle") is not None else {}
+        image_decision = cycle_record.get("image_decision") or {}
+        prompt = image_decision.get("prompt") or ""
+        gallery_items.append({
             "cycle": j["cycle"],
             "mode": j["mode"],
             "date": j["date"],
             "title": j.get("title", ""),
             "thumbnail_url": j["thumbnail_url"],
-        }
-        for j in journals
-        if j.get("thumbnail_url")
-    ]
+            "prompt": prompt,
+        })
     return templates.TemplateResponse("gallery.html", {
         "request": request,
         "active_nav": "gallery",
@@ -372,6 +499,14 @@ async def insights(request: Request):
         key=lambda t: (t.get("resolution") or {}).get("cycle", 0),
         reverse=True,
     )[:5]
+    # Add resolution date for each (from cycle record)
+    for t in recently_resolved:
+        res_cycle = (t.get("resolution") or {}).get("cycle")
+        if res_cycle is not None:
+            rec = _load_cycle_record(res_cycle)
+            t["resolution_date"] = (rec.get("timestamp") or "")[:10]
+        else:
+            t["resolution_date"] = ""
 
     active_commitments = [c for c in commitments_raw if c.get("status") == "active"]
 
@@ -390,6 +525,39 @@ async def insights(request: Request):
         "recent_cycles": recent_cycles,
         "letterbox_tension": letterbox_tension,
         "current_cycle": current_cycle,
+        "site_url": SITE_URL,
+        "site_name": SITE_NAME,
+    })
+
+
+@app.get("/challenge", response_class=HTMLResponse)
+async def challenge_page(request: Request):
+    tensions_raw = _load_json(DATA_DIR / "tensions.json", [])
+    state = _load_state()
+    current_cycle = state.get("cycle", 0)
+    active_tensions = sorted(
+        [t for t in tensions_raw if t.get("status") == "active"],
+        key=lambda t: t.get("created_cycle", 0),
+    )
+    for t in active_tensions:
+        t["age_cycles"] = current_cycle - t.get("created_cycle", 0)
+    letterbox_tension = active_tensions[0] if active_tensions else None
+    social_replies = _load_social_replies()
+    social_profile_links = []
+    if X_PROFILE_URL.strip():
+        social_profile_links.append({"name": "X", "url": X_PROFILE_URL.strip()})
+    if BLUESKY_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Bluesky", "url": BLUESKY_PROFILE_URL.strip()})
+    if THREADS_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Threads", "url": THREADS_PROFILE_URL.strip()})
+    if INSTAGRAM_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
+    return templates.TemplateResponse("challenge.html", {
+        "request": request,
+        "active_nav": "challenge",
+        "letterbox_tension": letterbox_tension,
+        "social_replies": social_replies,
+        "social_profile_links": social_profile_links,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })
@@ -465,17 +633,22 @@ async def submit_challenge(
 ):
     # Honeypot check — bots fill this hidden field
     if website.strip():
-        return JSONResponse({"status": "ok", "message": "Thank you for your submission."})
+        return JSONResponse({"status": "ok", "message": "Thank you for your contribution."})
+
+    # Blocklist check — reject banned IPs before any other processing
+    ip = get_remote_address(request) or "unknown"
+    ip_hash = hashlib.sha256(ip.encode()).hexdigest()
+    if ip_hash in _load_blocked_hashes():
+        raise HTTPException(
+            403,
+            detail="Your access to this form has been restricted due to a previous violation of our community guidelines.",
+        )
 
     text = challenge.strip()
     if len(text) < SUBMISSION_MIN_LENGTH:
         raise HTTPException(400, f"Submission must be at least {SUBMISSION_MIN_LENGTH} characters.")
     if len(text) > SUBMISSION_MAX_LENGTH:
         raise HTTPException(400, f"Submission must be at most {SUBMISSION_MAX_LENGTH} characters.")
-
-    # Hash IP — never store raw IP
-    ip = get_remote_address(request) or "unknown"
-    ip_hash = hashlib.sha256(ip.encode()).hexdigest()
 
     submission = {
         "submission_id": f"sub-{int(time.time() * 1000)}",
@@ -488,13 +661,30 @@ async def submit_challenge(
         "rejection_reason": None,
     }
 
+    # Hygiene check at submit time: toxicity and prompt injection → block IP and reject
+    from . import filtering
+    hygiene = filtering._hygiene_check(submission)
+    if not hygiene["pass"]:
+        reason = hygiene.get("reason", "")
+        if reason in ("toxicity", "prompt_injection"):
+            _add_blocked_hash(ip_hash)
+            raise HTTPException(
+                403,
+                detail="Your submission was rejected for violating our community guidelines (harmful or abusive content). Your access to this form has been restricted.",
+            )
+        if reason == "duplicate":
+            raise HTTPException(400, detail="You have already submitted this or a very similar challenge.")
+        if reason == "invalid_encoding":
+            raise HTTPException(400, detail="Submission contained invalid characters. Please use plain text.")
+        raise HTTPException(400, detail="Submission did not meet our guidelines. Please try again.")
+
     quarantine_dir = DATA_DIR / "injections" / "quarantine"
     quarantine_dir.mkdir(parents=True, exist_ok=True)
     path = quarantine_dir / f"{submission['submission_id']}.json"
     path.write_text(json.dumps(submission, indent=2, ensure_ascii=False), encoding="utf-8")
 
     logger.info("Submission received: %s", submission["submission_id"])
-    return JSONResponse({"status": "ok", "message": "Thank you for your submission."})
+    return JSONResponse({"status": "ok", "message": "Thank you for your contribution."})
 
 
 # ── Favicon / asset shortcuts ──────────────────────────────────────────────────

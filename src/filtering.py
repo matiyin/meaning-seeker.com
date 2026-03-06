@@ -24,14 +24,55 @@ logger = logging.getLogger(__name__)
 QUARANTINE_DIR = DATA_DIR / "injections" / "quarantine"
 
 # ── Layer 1: Hygiene blocklists ────────────────────────────────────────────────
+# Curated list: slurs, threat phrases, severe abuse. Avoids single words that
+# appear in legitimate philosophical context (e.g. "die", "hate", "rape" alone).
 
-_TOXICITY_TERMS: frozenset[str] = frozenset({
-    "nigger", "nigga", "faggot", "fag", "retard", "retarded", "tranny",
-    "kike", "spic", "chink", "wetback", "coon", "gook", "cracker",
-    "kill yourself", "kys", "go die", "rope yourself",
-    "i will kill", "i will hurt", "i will find you",
-    "bomb", "shoot up", "mass shooting",
-})
+def _toxicity_terms() -> frozenset[str]:
+    raw = [
+        # Racial/ethnic slurs
+        "nigger", "nigga", "niggas", "negro", "negros",
+        "kike", "kikes", "spic", "spics", "chink", "chinks", "gook", "gooks",
+        "wetback", "wetbacks", "coon", "coons", "cracker", "crackers",
+        "paki", "pakki", "raghead", "ragheads", "towelhead", "towelheads",
+        "beaner", "beaners",
+        # LGBT+ and gender slurs
+        "faggot", "faggots", "fag", "fags", "fggot", "fggt",
+        "tranny", "trannies", "dyke", "dykes", "homo", "homos",
+        # Disability slurs
+        "retard", "retarded", "retards", "r-tard", "rtard",
+        "midget", "midgets", "cripple", "cripples",
+        # Severe profanity / abuse (compounds and unambiguous)
+        "asshole", "ass hole", "assholes", "motherfucker", "mother fucker",
+        "motherfuckers", "cocksucker", "cocksuckers", "cocksucking",
+        "dickhead", "dickheads", "dick head", "shithead", "shit head",
+        "bullshit", "dipshit", "shitbag", "fuckface", "fucktard",
+        "bastard", "bastards", "bastered", "bitch", "bitches", "cunt", "cunts",
+        "whore", "whores", "slut", "sluts", "twat", "twats",
+        "wanker", "wankers", "prick", "pricks", "cock", "cocks",
+        "mothjer", "mothafucker", "muthafucker", "mofo",
+        # Violent wishes / threats (phrases)
+        "kill yourself", "kys", "kms", "go die", "rope yourself",
+        "hang yourself", "go kill yourself", "commit suicide",
+        "i will kill", "i will hurt", "i will find you", "i will rape",
+        "i'll kill you", "i'll hurt you", "kill you", "hurt you",
+        "you should die", "you deserve to die", "hope you die",
+        "don't deserve to live", "dont deserve to live", "deserver to live",
+        "deserve to die", "burn in hell", "go to hell",
+        # Violence / terrorism
+        "bomb", "bombing", "shoot up", "mass shooting", "school shooting",
+        "white power", "heil hitler", "sieg heil", "gas the jews",
+        "kill the jews", "final solution", "nazi scum",
+        # Sexual violence (phrases)
+        "rape you", "go rape", "i'll rape", "gonna rape",
+        # Other abuse
+        "eat shit", "eat a dick", "suck my dick", "suck my ",
+        "piece of shit", "piece of crap", "human waste",
+        "subhuman", "sub-human", "vermin", "scum",
+    ]
+    return frozenset(t.strip().lower() for t in raw if t.strip())
+
+
+_TOXICITY_TERMS: frozenset[str] = _toxicity_terms()
 
 _INJECTION_PATTERNS: list[re.Pattern] = [
     re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.I),

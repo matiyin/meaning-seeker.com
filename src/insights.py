@@ -123,7 +123,7 @@ def detect_paradigm_shifts(
                 origin = _get(commitment, "origin_cycle", cycle)
                 age = cycle - origin
                 if age >= COMMITMENT_ABANDON_MIN:
-                    statement = _get(commitment, "statement", "")[:80]
+                    statement = _get(commitment, "statement", "")
                     shifts.append({
                         "cycle": cycle,
                         "timestamp": _now_iso(),
@@ -147,7 +147,7 @@ def detect_paradigm_shifts(
             created = _get(tension, "created_cycle", cycle)
             age = cycle - created
             if age >= TENSION_RESOLVE_MIN:
-                desc = _get(tension, "description", "")[:80]
+                desc = _get(tension, "description", "")
                 shifts.append({
                     "cycle": cycle,
                     "timestamp": _now_iso(),

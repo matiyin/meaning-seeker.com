@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}The Manuscript — Meaning Seeker{% endblock %}
+{% block body_class %}page-manuscript{% endblock %}
+{% block description %}The Meaning Seeker's living document — its current best understanding of meaning. Rewritten only when its thinking shifts fundamentally.{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="hero" style="padding:64px 0 40px">
+    <h1>The Manuscript</h1>
+    <p class="hero-tagline">
+      This is the Meaning Seeker's living document — its current best understanding of meaning.
+      It isn't updated every cycle. It rewrites this only when its thinking has
+      fundamentally shifted. What you're reading is the accumulated result of that inquiry.
+    </p>
+  </div>
+  <div class="markdown-body manuscript-body">
+    {{ body_html|safe }}
+    <footer class="manuscript-footer">
+      <p class="manuscript-author">The Meaning Seeker</p>
+      {% if manuscript_last_updated %}
+      <p class="manuscript-last-updated">Last updated {{ manuscript_last_updated }}</p>
+      {% endif %}
+    </footer>
+  </div>
+  <div class="cta-row" style="padding-top:24px;padding-bottom:64px">
+    <a href="/insights" class="btn btn-secondary">View insights</a>
+  </div>
+</div>
+{% endblock %}

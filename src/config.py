@@ -82,8 +82,16 @@ THREADS_USER_ID: str = os.getenv("THREADS_USER_ID", "")
 INSTAGRAM_ACCESS_TOKEN: str = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
 INSTAGRAM_USER_ID: str = os.getenv("INSTAGRAM_USER_ID", "")
 
+# Phase C: Social media profile URLs (for "follow" links on challenge page)
+X_PROFILE_URL: str = os.getenv("X_PROFILE_URL", "")
+BLUESKY_PROFILE_URL: str = os.getenv("BLUESKY_PROFILE_URL", "")
+THREADS_PROFILE_URL: str = os.getenv("THREADS_PROFILE_URL", "")
+INSTAGRAM_PROFILE_URL: str = os.getenv("INSTAGRAM_PROFILE_URL", "")
+
 # Phase C: Image generation via OpenRouter (uses same API_KEY as main model)
 IMAGE_MODEL: str = os.getenv("IMAGE_MODEL", "black-forest-labs/flux.2-klein-4b")
+# Force image this cycle (for testing). When set, generate an image even if the model didn't ask for one; prompt from summary or thesis.
+FORCE_IMAGE: bool = os.getenv("FORCE_IMAGE", "").lower() in ("1", "true", "yes")
 
 # Phase C: Social moderation (local-first, Haiku only for edge cases)
 SOCIAL_MODERATION_ENABLED: bool = os.getenv("SOCIAL_MODERATION_ENABLED", "true").lower() == "true"

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>{% block title %}Meaning Seeker{% endblock %}</title>
-<meta name="description" content="{% block description %}An autonomous AI searching for meaning — one inquiry cycle at a time.{% endblock %}">
+<meta name="description" content="{% block description %}We all ask why we're here. Meaning Seeker is an AI doing the same — it has read more about meaning than any human ever could.{% endblock %}">
 <meta name="theme-color" content="#30d158">
 <meta name="author" content="10101">
 <meta property="og:type" content="website">
@@ -28,26 +28,25 @@
 <link rel="stylesheet" href="/static/style.css">
 {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 <canvas id="seeker-bg"></canvas>
 <nav class="nav">
   <a href="/" class="nav-brand">Meaning Seeker</a>
+  <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+    <svg id="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    <svg id="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+  </button>
   <div class="nav-links">
-    <a href="/"{% if active_nav == 'home' %} class="active"{% endif %}>Home</a>
     <a href="/journal"{% if active_nav == 'journal' %} class="active"{% endif %}>Journal</a>
+    <a href="/manuscript"{% if active_nav == 'manuscript' %} class="active"{% endif %}>Manuscript</a>
     <a href="/insights"{% if active_nav == 'insights' %} class="active"{% endif %}>Insights</a>
     <a href="/gallery"{% if active_nav == 'gallery' %} class="active"{% endif %}>Gallery</a>
+    <a href="/challenge" class="btn btn-primary nav-challenge-btn nav-challenge-btn--mobile{% if active_nav == 'challenge' %} active{% endif %}">Submit a challenge</a>
   </div>
   <div class="nav-right">
-    <a href="https://github.com/matiyin/meaning-seeker.com" target="_blank" rel="noopener noreferrer" class="nav-github" title="GitHub repository" aria-label="GitHub repository">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-    </a>
-    <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
-      <svg id="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      <svg id="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-    </button>
+    <a href="/challenge" class="btn btn-primary nav-challenge-btn nav-challenge-btn--desktop">Challenge</a>
     <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">
-      <span class="nav-menu-icon">≡</span>
+      <span class="nav-menu-icon">?</span>
     </button>
   </div>
 </nav>
@@ -57,7 +56,7 @@
 <footer class="site-footer">
   <div class="site-footer-inner">
     <div class="site-footer-bottom">
-      <span>Meaning Seeker — an autonomous inquiry</span>
+      <span>Meaning Seeker — doing philosophy in public, one cycle at a time. By Creator 10101.</span>
       <a href="https://github.com/matiyin/meaning-seeker.com" target="_blank" rel="noopener noreferrer">Source</a>
     </div>
   </div>
@@ -101,12 +100,13 @@ var ctx=canvas.getContext('2d');
 var W,H,pageH,dpr;
 var isDark=document.documentElement.getAttribute('data-theme')!=='light';
 new MutationObserver(function(){isDark=document.documentElement.getAttribute('data-theme')!=='light';}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+/* Light mode uses link color #20adb5 = rgb(32,173,181) */
 function themeColor(hue,act){
   if(isDark)return[Math.round(48+hue*15+act*30),Math.round(209-hue*20+act*20),Math.round(88+hue*25+act*15)];
-  return[Math.round(45+hue*10+act*15),Math.round(85+hue*15+act*20),Math.round(140+hue*20+act*25)];
+  return[Math.round(32+hue*8+act*12),Math.round(173-hue*6+act*8),Math.round(181+hue*6+act*10)];
 }
-function trailColor(){return isDark?[48,209,88]:[50,95,150];}
-function headColor(){return isDark?[60,220,100]:[55,110,165];}
+function trailColor(){return isDark?[48,209,88]:[32,173,181];}
+function headColor(){return isDark?[60,220,100]:[45,195,205];}
 var GRAD=[[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
 var perm=new Uint8Array(512);
 (function(){var p=new Uint8Array(256);for(var i=0;i<256;i++)p[i]=i;
@@ -211,6 +211,77 @@ function draw(ts){
 }
 requestAnimationFrame(draw);
 })();</script>
+<div id="image-viewer-modal" class="gallery-modal" role="dialog" aria-modal="true" aria-label="Image viewer">
+  <div class="gallery-modal-top">
+    <span class="gallery-modal-counter" id="image-viewer-counter"></span>
+    <button type="button" class="gallery-modal-close" id="image-viewer-close" aria-label="Close">×</button>
+  </div>
+  <div class="gallery-modal-inner">
+    <div class="gallery-modal-side-nav">
+      <button type="button" class="gallery-modal-prev" id="image-viewer-prev" aria-label="Previous image">‹</button>
+    </div>
+    <div class="gallery-modal-center">
+      <div class="gallery-modal-img-wrap" id="image-viewer-img-wrap">
+        <img id="image-viewer-img" src="" alt="">
+      </div>
+      <div class="gallery-modal-title" id="image-viewer-title"></div>
+      <div class="gallery-modal-nav-row">
+        <button type="button" class="gallery-modal-prev" id="image-viewer-prev-row" aria-label="Previous image">‹</button>
+        <button type="button" class="gallery-modal-next" id="image-viewer-next-row" aria-label="Next image">›</button>
+      </div>
+    </div>
+    <div class="gallery-modal-side-nav">
+      <button type="button" class="gallery-modal-next" id="image-viewer-next" aria-label="Next image">›</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var modal=document.getElementById('image-viewer-modal');
+  var imgEl=document.getElementById('image-viewer-img');
+  var titleEl=document.getElementById('image-viewer-title');
+  var counterEl=document.getElementById('image-viewer-counter');
+  var closeBtn=document.getElementById('image-viewer-close');
+  var prevBtns=document.querySelectorAll('#image-viewer-prev, #image-viewer-prev-row');
+  var nextBtns=document.querySelectorAll('#image-viewer-next, #image-viewer-next-row');
+  var list=[], idx=0;
+  function showSingle(src, title){
+    if(!modal||!imgEl)return;
+    imgEl.src=src; imgEl.alt=title||'';
+    if(titleEl){ titleEl.textContent=title||''; titleEl.style.display=(title&&title.trim())?'block':'none'; }
+    counterEl.style.display='none';
+    prevBtns.forEach(function(b){b.style.display='none';});
+    nextBtns.forEach(function(b){b.style.display='none';});
+    modal.classList.add('open'); document.body.style.overflow='hidden';
+  }
+  function showAt(){
+    if(!modal||!imgEl||idx<0||idx>=list.length)return;
+    var it=list[idx];
+    imgEl.src=it.src||it.thumbnail_url; imgEl.alt=it.title||'';
+    if(titleEl){ titleEl.textContent=it.title||''; titleEl.style.display='block'; }
+    counterEl.textContent=(idx+1)+' / '+list.length; counterEl.style.display='block';
+    prevBtns.forEach(function(b){b.style.display=list.length>1?'flex':'none';});
+    nextBtns.forEach(function(b){b.style.display=list.length>1?'flex':'none';});
+    modal.classList.add('open'); document.body.style.overflow='hidden';
+  }
+  function hide(){ if(modal){ modal.classList.remove('open'); document.body.style.overflow=''; } }
+  window.openImageModal=function(src, title){ list=[]; idx=0; showSingle(src, title); };
+  window.openImageModalList=function(items, startIdx){ list=items||[]; idx=Math.max(0,Math.min(startIdx|0,list.length-1)); showAt(); };
+  window.closeImageModal=hide;
+  if(closeBtn)closeBtn.addEventListener('click',hide);
+  if(modal)modal.addEventListener('click',function(e){if(e.target===modal)hide();});
+  function prev(){ if(list.length>1){ idx=(idx-1+list.length)%list.length; showAt(); } }
+  function next(){ if(list.length>1){ idx=(idx+1)%list.length; showAt(); } }
+  prevBtns.forEach(function(b){b.addEventListener('click',prev);});
+  nextBtns.forEach(function(b){b.addEventListener('click',next);});
+  document.addEventListener('keydown',function(e){
+    if(!modal||!modal.classList.contains('open'))return;
+    if(e.key==='Escape')hide();
+    else if(e.key==='ArrowLeft')prev();
+    else if(e.key==='ArrowRight')next();
+  });
+})();
+</script>
 {% block extra_scripts %}{% endblock %}
 </body>
 </html>

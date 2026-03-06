@@ -35,8 +35,10 @@ def generate_image(cycle: int, prompt: str) -> Optional[Path]:
 
     enhanced_prompt = (
         f"Abstract philosophical visualization. {prompt}. "
-        "Contemplative, minimal, evocative. No text or words in the image. "
-        "Deep color, rich texture, meditative quality."
+        "Style: abstract, psychedelic, artful, highly colourful, visually striking. "
+        "No realism, no people, no faces, no body parts. "
+        "Convey the idea through shapes, light, colour, atmosphere, and flow only. "
+        "Contemplative, evocative, no text or words in the image."
     )
 
     try:

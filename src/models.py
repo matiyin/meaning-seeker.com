@@ -65,6 +65,8 @@ class MonitoringResult(BaseModel):
     threatened_commitments: list["ThreatMapEntry"] = Field(default_factory=list)
     deflection_flags: list[str] = Field(default_factory=list)
     move_classification: str = "none"
+    self_reference_ratio: float = 0.0  # 0.0-1.0, fraction about AI's own nature
+    has_concrete_grounding: bool = False
 
 
 class InjectionRecord(BaseModel):

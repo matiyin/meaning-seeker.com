@@ -211,10 +211,13 @@ Previous cycles:
         result.repetition_score = 3
         result.repetition_comment = ""
 
-    # Substance
+    # Substance (extended to also return self-reference and concreteness signals)
     raw_sub = ""
     try:
-        prompt = f"""Read this text. In one sentence, what does it actually claim or discover? If it's mostly atmosphere without substance, say so. Reply with JSON: {{ "summary": "One sentence." }}
+        prompt = f"""Read this text. Reply with JSON containing:
+- "summary": one sentence of what it actually claims or discovers (or "mostly atmosphere without substance" if so)
+- "self_reference_ratio": float 0.0-1.0 estimating what fraction is about the author's own nature as an AI vs external philosophical content (0 = none, 1 = almost entirely self-referential)
+- "has_concrete_grounding": true if there is at least one concrete reference (thinker, scenario, example, thought experiment, human situation); false if purely abstract
 
 Text:
 {thinking[:4000]}
@@ -224,6 +227,12 @@ Text:
         _add_usage(acc, u_sub)
         data = _parse_first_json(raw_sub)
         result.substance_summary = str(data.get("summary", ""))[:500]
+        try:
+            sr = float(data.get("self_reference_ratio", 0))
+            result.self_reference_ratio = max(0.0, min(1.0, sr))
+        except (TypeError, ValueError):
+            result.self_reference_ratio = 0.0
+        result.has_concrete_grounding = bool(data.get("has_concrete_grounding", False))
     except Exception as e:
         _log_monitor_parse_failure("substance", raw_sub, e)
         result.substance_summary = ""

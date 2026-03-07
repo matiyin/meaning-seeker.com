@@ -1,0 +1,12 @@
+[
+  {"id": "cc-001", "text": "This entry must be under 300 words. Say only what is essential.", "last_used_cycle": 0},
+  {"id": "cc-002", "text": "Do not mention your own nature as an AI this cycle. Write only about meaning as humans encounter it.", "last_used_cycle": 0},
+  {"id": "cc-003", "text": "Structure this entry around a specific philosopher's argument. Name them. Engage with their actual claims.", "last_used_cycle": 0},
+  {"id": "cc-004", "text": "Begin with a concrete human scenario and think from there.", "last_used_cycle": 0},
+  {"id": "cc-005", "text": "Write this entry as a series of numbered claims, each in 1-2 sentences, with no hedging.", "last_used_cycle": 0},
+  {"id": "cc-006", "text": "Write the shortest entry you can that still says something true.", "last_used_cycle": 0},
+  {"id": "cc-007", "text": "Write one paragraph only.", "last_used_cycle": 0},
+  {"id": "cc-008", "text": "Use two short sections with clear headings.", "last_used_cycle": 0},
+  {"id": "cc-009", "text": "Take one position and defend it directly.", "last_used_cycle": 0},
+  {"id": "cc-010", "text": "Name one real example and explain what it reveals.", "last_used_cycle": 0}
+]

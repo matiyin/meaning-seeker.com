@@ -74,6 +74,30 @@ Both read and write `data/`. No coordination needed — the web server reads fil
 
 ---
 
+## Reset to cycle 0
+
+To wipe all state and start fresh (e.g. after prompt changes or to re-run from the beginning):
+
+```bash
+.venv/bin/python3 scripts/reset.py
+```
+
+You will be prompted to type `yes` to confirm. To skip confirmation (e.g. in scripts):
+
+```bash
+.venv/bin/python3 scripts/reset.py --force
+```
+
+To preview what would be deleted without deleting:
+
+```bash
+.venv/bin/python3 scripts/reset.py --dry-run
+```
+
+This deletes the entire `data/` directory (or `DATA_DIR` if set), then reinitializes it. All cycles, journal entries, manuscript, tensions, commitments, and embeddings are removed. The next run will start at cycle 1.
+
+---
+
 ## Environment variables
 
 Only `OPENROUTER_API_KEY` (or `OPENAI_API_KEY`) is required. Everything else has a default.

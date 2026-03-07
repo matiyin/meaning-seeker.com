@@ -23,6 +23,7 @@ from .config import (
     FILTER_MODEL_ID,
     INSTAGRAM_ACCESS_TOKEN,
     INSTAGRAM_USER_ID,
+    SITE_URL,
     SOCIAL_MODERATION_ENABLED,
     THREADS_ACCESS_TOKEN,
     THREADS_USER_ID,
@@ -112,7 +113,51 @@ def _moderate(text: str) -> tuple[bool, str]:
 
 # ── Platform implementations ───────────────────────────────────────────────────
 
-def _post_x(text: str) -> dict:
+def _format_post(text: str, cycle: int, limit: int) -> str:
+    """Wrap the quote in curly quotes and append a journal link + tagline.
+
+    Falls back gracefully: if everything doesn't fit, drops the tagline; if still
+    too long, drops the link; finally truncates the quote.
+    """
+    journal_url = f"{SITE_URL.rstrip('/')}/journal/{cycle}" if cycle and SITE_URL else ""
+    tagline = "An AI doing philosophy in public — one cycle at a time."
+
+    def _build(quote: str, include_url: bool, include_tagline: bool) -> str:
+        parts = [f"\u201c{quote}\u201d"]
+        if include_url:
+            parts.append(journal_url)
+        if include_tagline:
+            parts.append(tagline)
+        return "\n\n".join(parts)
+
+    for include_tagline in (True, False):
+        for include_url in (True, False):
+            candidate = _build(text, include_url=include_url, include_tagline=include_tagline)
+            if len(candidate) <= limit:
+                return candidate
+
+    # Last resort: truncate the quote itself
+    overhead = len(_build("", include_url=False, include_tagline=False))
+    return _build(text[: limit - overhead - 1], include_url=False, include_tagline=False)
+
+
+def _bluesky_link_facets(text: str, journal_url: str):
+    """Build Bluesky facets so the journal URL is a clickable link. Returns list or None."""
+    if not journal_url or journal_url not in text:
+        return None
+    from atproto import models
+    pos = text.index(journal_url)
+    byte_start = len(text[:pos].encode("utf-8"))
+    byte_end = len((text[:pos] + journal_url).encode("utf-8"))
+    return [
+        models.AppBskyRichtextFacet.Main(
+            index=models.AppBskyRichtextFacet.ByteSlice(byte_start=byte_start, byte_end=byte_end),
+            features=[models.AppBskyRichtextFacet.Link(uri=journal_url)],
+        )
+    ]
+
+
+def _post_x(text: str, cycle: int = 0) -> dict:
     try:
         import tweepy
         client = tweepy.Client(
@@ -121,7 +166,8 @@ def _post_x(text: str) -> dict:
             access_token=X_ACCESS_TOKEN,
             access_token_secret=X_ACCESS_SECRET,
         )
-        response = client.create_tweet(text=text[:280])
+        formatted = _format_post(text, cycle=cycle, limit=280)
+        response = client.create_tweet(text=formatted)
         tweet_id = response.data["id"] if response.data else None
         logger.info("X: posted tweet %s", tweet_id)
         return {"ok": True, "tweet_id": tweet_id}
@@ -130,12 +176,65 @@ def _post_x(text: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-def _post_bluesky(text: str) -> dict:
+# Bluesky image blob limit (API allows ~976KB)
+BLUESKY_IMAGE_MAX_BYTES = 950 * 1024
+
+
+def _resize_image_for_bluesky(image_bytes: bytes) -> bytes:
+    """Resize/compress image to fit Bluesky blob limit. Returns JPEG bytes."""
+    from io import BytesIO
+    from PIL import Image
+    target = BLUESKY_IMAGE_MAX_BYTES
+    img = Image.open(BytesIO(image_bytes)).convert("RGB")
+    out = BytesIO()
+    for quality in (85, 70, 55, 40):
+        out.seek(0)
+        out.truncate(0)
+        img.save(out, "JPEG", quality=quality, optimize=True)
+        if out.tell() <= target:
+            return out.getvalue()
+    # Still too large: resize by half and try again
+    w, h = img.size
+    img = img.resize((w // 2, h // 2), Image.Resampling.LANCZOS)
+    for quality in (75, 60, 45, 30):
+        out.seek(0)
+        out.truncate(0)
+        img.save(out, "JPEG", quality=quality, optimize=True)
+        if out.tell() <= target:
+            return out.getvalue()
+    # last resort: smallest size
+    out.seek(0)
+    out.truncate(0)
+    img.save(out, "JPEG", quality=25, optimize=True)
+    return out.getvalue()
+
+
+def _post_bluesky(
+    text: str,
+    image_path: Optional[Path] = None,
+    cycle: int = 0,
+    image_alt: Optional[str] = None,
+) -> dict:
     try:
         from atproto import Client
         client = Client()
         client.login(BLUESKY_HANDLE, BLUESKY_PASSWORD)
-        post = client.send_post(text=text[:300])
+        formatted = _format_post(text, cycle=cycle, limit=300)
+        journal_url = f"{SITE_URL.rstrip('/')}/journal/{cycle}" if cycle and SITE_URL else ""
+        facets = _bluesky_link_facets(formatted, journal_url)
+        if image_path and image_path.exists():
+            image_bytes = image_path.read_bytes()
+            if len(image_bytes) > BLUESKY_IMAGE_MAX_BYTES:
+                image_bytes = _resize_image_for_bluesky(image_bytes)
+            alt = image_alt or "Meaning Seeker cycle image"
+            post = client.send_image(
+                text=formatted,
+                image=image_bytes,
+                image_alt=alt,
+                facets=facets,
+            )
+        else:
+            post = client.send_post(text=formatted, facets=facets)
         logger.info("Bluesky: posted %s", post.uri)
         return {"ok": True, "uri": post.uri}
     except Exception as e:
@@ -143,17 +242,18 @@ def _post_bluesky(text: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-def _post_threads(text: str) -> dict:
+def _post_threads(text: str, cycle: int = 0) -> dict:
     """Post to Threads using Meta's Threads API via httpx."""
     try:
         import httpx
         base = "https://graph.threads.net/v1.0"
+        formatted = _format_post(text, cycle=cycle, limit=500)
         # Step 1: Create media container
         r1 = httpx.post(
             f"{base}/{THREADS_USER_ID}/threads",
             params={
                 "media_type": "TEXT",
-                "text": text[:500],
+                "text": formatted,
                 "access_token": THREADS_ACCESS_TOKEN,
             },
             timeout=30,
@@ -238,6 +338,7 @@ def post_social(
     text: str,
     image_path: Optional[Path] = None,
     cycle: int = 0,
+    title: Optional[str] = None,
 ) -> dict:
     """Post to all configured platforms. Returns dict of {platform: result}.
 
@@ -245,8 +346,11 @@ def post_social(
         text: The philosophical text to post.
         image_path: Optional path to a generated image (used for Instagram).
         cycle: Cycle number for logging.
+        title: Cycle title (same as gallery caption under image); used for image alt text.
     """
     results: dict = {}
+    # Same as gallery: caption under image is title or "Cycle N"
+    image_alt = (title or (f"Cycle {cycle}" if cycle else "Meaning Seeker cycle image"))
 
     # Moderation check first
     if SOCIAL_MODERATION_ENABLED:
@@ -258,13 +362,15 @@ def post_social(
             return {"blocked": reason}
 
     if X_API_KEY and X_ACCESS_TOKEN:
-        results["x"] = _post_x(text)
+        results["x"] = _post_x(text, cycle=cycle)
 
     if BLUESKY_HANDLE and BLUESKY_PASSWORD:
-        results["bluesky"] = _post_bluesky(text)
+        results["bluesky"] = _post_bluesky(
+            text, image_path=image_path, cycle=cycle, image_alt=image_alt
+        )
 
     if THREADS_ACCESS_TOKEN and THREADS_USER_ID:
-        results["threads"] = _post_threads(text)
+        results["threads"] = _post_threads(text, cycle=cycle)
 
     if INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_USER_ID and image_path:
         results["instagram"] = _post_instagram(text, image_path)

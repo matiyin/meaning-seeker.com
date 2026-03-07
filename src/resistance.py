@@ -8,7 +8,7 @@ import random
 import tempfile
 from pathlib import Path
 
-from .config import DATA_DIR
+from .config import BASE_DIR, DATA_DIR
 from .models import Commitment, InjectionRecord, Tension
 
 logger = logging.getLogger(__name__)
@@ -56,9 +56,13 @@ def load_counterpositions() -> list[dict]:
 
 
 def load_creative_constraints() -> list[dict]:
-    """Load creative constraint library. Each item: id, text, last_used_cycle."""
+    """Load creative constraint library. Each item: id, text, last_used_cycle. Falls back to seed if runtime file missing or empty."""
     path = INJECTIONS_DIR / "creative_constraints.json"
-    return _load_json_list(path, [])
+    items = _load_json_list(path, [])
+    if not items:
+        seed_path = BASE_DIR / "seed" / "creative_constraints.json"
+        items = _load_json_list(seed_path, [])
+    return items
 
 
 def load_human_challenges() -> list[dict]:

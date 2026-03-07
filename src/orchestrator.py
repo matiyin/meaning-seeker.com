@@ -275,6 +275,8 @@ def run_cycle() -> bool:
             "cycle_summary": monitoring.cycle_summary,
             "deflection_flags": monitoring.deflection_flags,
             "move_classification": monitoring.move_classification,
+            "self_reference_ratio": monitoring.self_reference_ratio,
+            "has_concrete_grounding": monitoring.has_concrete_grounding,
         },
         "gate": gate,
         "model_id": MODEL_ID,
@@ -293,6 +295,7 @@ def run_cycle() -> bool:
                 text=output.social_output,
                 image_path=image_path,
                 cycle=cycle,
+                title=output.title,
             )
             cycle_record["social_results"] = social_results
             logger.info("Cycle %s: social posting results: %s", cycle, social_results)

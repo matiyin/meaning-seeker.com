@@ -55,7 +55,7 @@ SILENCE_COOLDOWN: int = 10
 # Phase B: Pattern Monitor
 MOVE_LOG_SIZE: int = 20
 PATTERN_THRESHOLD_SAME_MOVE: int = 5  # same move in 5 of last 10 cycles
-PATTERN_THRESHOLD_NO_GROUNDING: int = 12  # no "concrete grounding" for 12+ cycles
+PATTERN_THRESHOLD_NO_GROUNDING: int = 6  # no "concrete grounding" for 12+ cycles
 
 # Phase C: Web server
 WEB_HOST: str = os.getenv("WEB_HOST", "0.0.0.0")

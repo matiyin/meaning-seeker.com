@@ -120,7 +120,10 @@
     <a href="/journal/{{ shift.cycle }}" class="insight-item insight-item-link" title="Read journal entry for cycle {{ shift.cycle }}">
       <h3 style="white-space:normal;word-break:break-word;font-weight:400;font-size:var(--font-size-body)">{{ shift.description | format_shift_desc | safe }}</h3>
       <div class="insight-meta">
-        <span class="badge" data-mode="{{ shift.event_type | replace('_', '') }}">{{ shift.event_type | replace('_', ' ') }}</span>
+        <span class="nav-split-badge">
+        <span class="split-cycle">C{{ shift.cycle }}</span>
+        <span class="split-phase" data-mode="{{ shift.event_type | replace('_', '') }}">{{ shift.event_type | replace('_', ' ') }}</span>
+      </span>
         cycle {{ shift.cycle }} · {{ shift.timestamp[:10] }}
       </div>
     </a>
@@ -135,7 +138,10 @@
     {% for record in recent_cycles %}
     <a href="/journal/{{ record.get('cycle', '') }}" class="activity-row activity-row-link" title="Read journal entry for cycle {{ record.get('cycle', '?') }}">
       <span class="activity-cycle">{{ record.get('cycle', '?') }}</span>
-      <span class="badge" data-mode="{{ record.get('mode', 'other') }}" style="flex-shrink:0">{{ record.get('mode', '?') }}</span>
+      <span class="nav-split-badge" style="flex-shrink:0">
+        <span class="split-cycle">C{{ record.get('cycle', '?') }}</span>
+        <span class="split-phase" data-mode="{{ record.get('mode', 'other') }}">{{ record.get('mode', '?') }}</span>
+      </span>
       <span class="activity-summary">{{ (record.get('summary') or record.get('cycle_summary') or '')[:100] }}</span>
       <span class="activity-indicators">
         {% if record.get('social_output') or record.get('social_results') %}

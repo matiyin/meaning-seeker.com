@@ -9,7 +9,10 @@
 
   <div class="entry-header">
     <div class="entry-meta-row">
-      <span class="badge" data-mode="{{ meta.mode }}">{{ meta.mode }}</span>
+      <span class="nav-split-badge">
+      <span class="split-cycle">C{{ cycle }}</span>
+      <span class="split-phase" data-mode="{{ meta.mode }}">{{ meta.mode }}</span>
+    </span>
       <span>Cycle {{ cycle }}</span>
       {% if meta.date %}<span>{{ meta.date }}</span>{% endif %}
       {% if meta.tokens_total %}<span>{{ '{:,}'.format(meta.tokens_total) }} tokens</span>{% endif %}
@@ -29,6 +32,38 @@
   {% if meta.thumbnail_url %}
   <div class="entry-hero-image-wrap">
     <img src="{{ meta.thumbnail_url }}" alt="" class="entry-hero-image entry-hero-image-clickable" data-image-src="{{ meta.thumbnail_url }}" data-image-title="{{ meta.title or ('Cycle ' ~ cycle) }}">
+    {% set ad = image_art_direction %}
+    {% if ad.visual_energy or ad.texture or ad.temperature %}
+    <div class="entry-art-direction">
+      {% if ad.visual_energy %}<span class="entry-art-tag">{{ ad.visual_energy }}</span>{% endif %}
+      {% if ad.texture %}<span class="entry-art-tag entry-art-tag--texture">{{ ad.texture }}</span>{% endif %}
+      {% if ad.temperature %}<span class="entry-art-tag entry-art-tag--temp">{{ ad.temperature }}</span>{% endif %}
+    </div>
+    {% elif ad.style or ad.medium or ad.artist_reference %}
+    <div class="entry-art-direction">
+      {% if ad.style %}<span class="entry-art-tag">{{ ad.style }}</span>{% endif %}
+      {% if ad.medium %}<span class="entry-art-tag entry-art-tag--medium">{{ ad.medium }}</span>{% endif %}
+      {% if ad.artist_reference %}<span class="entry-art-tag entry-art-tag--artist">{{ ad.artist_reference }}</span>{% endif %}
+    </div>
+    {% endif %}
+    {% set has_new_detail = ad.beyond_words or ad.visual_energy %}
+    {% set has_legacy_detail = ad.concept or ad.why %}
+    {% if has_new_detail %}
+    <div class="gallery-card-prompt entry-hero-prompt" id="entry-hero-prompt" aria-hidden="true">
+      {% if ad.beyond_words %}<p class="art-detail-beyond">{{ ad.beyond_words }}</p>{% endif %}
+      {% if ad.palette %}<p class="art-detail-palette"><em>Colour:</em> {{ ad.palette }}</p>{% endif %}
+    </div>
+    <button type="button" class="gallery-card-prompt-toggle entry-hero-prompt-toggle" data-for="entry-hero-prompt" aria-expanded="false">What the words couldn't say <span class="gallery-card-prompt-arrow" aria-hidden="true">↓</span></button>
+    {% elif has_legacy_detail %}
+    <div class="gallery-card-prompt entry-hero-prompt" id="entry-hero-prompt" aria-hidden="true">
+      {% if ad.concept %}<p class="art-detail-concept">{{ ad.concept }}</p>{% endif %}
+      {% if ad.why %}<p class="art-detail-why"><em>Why this style:</em> {{ ad.why }}</p>{% endif %}
+    </div>
+    <button type="button" class="gallery-card-prompt-toggle entry-hero-prompt-toggle" data-for="entry-hero-prompt" aria-expanded="false">See art direction <span class="gallery-card-prompt-arrow" aria-hidden="true">↓</span></button>
+    {% elif image_prompt %}
+    <div class="gallery-card-prompt entry-hero-prompt" id="entry-hero-prompt" aria-hidden="true">{{ image_prompt }}</div>
+    <button type="button" class="gallery-card-prompt-toggle entry-hero-prompt-toggle" data-for="entry-hero-prompt" aria-expanded="false">See prompt <span class="gallery-card-prompt-arrow" aria-hidden="true">↓</span></button>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -45,7 +80,7 @@
         <span class="nav-arrow-label">← Older</span>
         <span class="nav-arrow-top">
           <span class="nav-split-badge">
-            <span class="split-cycle">{{ '%06d' % prev_meta.cycle }}</span>
+            <span class="split-cycle">C{{ prev_meta.cycle }}</span>
             <span class="split-phase" data-mode="{{ prev_meta.mode }}">{{ prev_meta.mode }}</span>
           </span>
         </span>
@@ -62,7 +97,7 @@
         <span class="nav-arrow-label">Newer →</span>
         <span class="nav-arrow-top">
           <span class="nav-split-badge">
-            <span class="split-cycle">{{ '%06d' % next_meta.cycle }}</span>
+            <span class="split-cycle">C{{ next_meta.cycle }}</span>
             <span class="split-phase" data-mode="{{ next_meta.mode }}">{{ next_meta.mode }}</span>
           </span>
         </span>
@@ -77,6 +112,7 @@
     <a href="/journal" class="back-link">All entries</a>
   </div>
 </div>
+{% endblock content %}
 {% block extra_scripts %}
 <script>
 (function(){
@@ -85,7 +121,21 @@
       if(window.openImageModal) window.openImageModal(this.dataset.imageSrc, this.dataset.imageTitle || '');
     });
   });
+  document.querySelectorAll('.entry-hero-prompt-toggle').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      var id = btn.getAttribute('data-for');
+      if(!id) return;
+      var el = document.getElementById(id);
+      if(!el) return;
+      el.classList.toggle('expanded');
+      btn.setAttribute('aria-expanded', el.classList.contains('expanded'));
+      var expanded = el.classList.contains('expanded');
+      var arrow = btn.querySelector('.gallery-card-prompt-arrow');
+      if(btn.childNodes[0] && btn.childNodes[0].nodeType === 3) btn.childNodes[0].textContent = expanded ? 'Hide prompt ' : 'See prompt ';
+      if(arrow) arrow.textContent = expanded ? '↑' : '↓';
+    });
+  });
 })();
 </script>
 {% endblock %}
-{% endblock content %}

@@ -414,6 +414,23 @@ async def journal_entry(request: Request, cycle: int):
         if nm:
             next_meta = nm
 
+    image_decision = (cycle_record or {}).get("image_decision") or {}
+    image_prompt = image_decision.get("prompt") or ""
+    image_art_direction = {
+        "beyond_words": image_decision.get("beyond_words") or "",
+        "visual_energy": image_decision.get("visual_energy") or "",
+        "texture": image_decision.get("texture") or "",
+        "palette": image_decision.get("palette") or "",
+        "temperature": image_decision.get("temperature") or "",
+        "prompt": image_prompt,
+        # Legacy fields for old cycle records
+        "style": image_decision.get("style") or "",
+        "medium": image_decision.get("medium") or "",
+        "artist_reference": image_decision.get("artist_reference") or "",
+        "concept": image_decision.get("concept") or "",
+        "why": image_decision.get("why") or "",
+    }
+
     return templates.TemplateResponse("journal_entry.html", {
         "request": request,
         "active_nav": "journal",
@@ -423,6 +440,8 @@ async def journal_entry(request: Request, cycle: int):
         "cycle_record": cycle_record,
         "prev_meta": prev_meta,
         "next_meta": next_meta,
+        "image_prompt": image_prompt,
+        "image_art_direction": image_art_direction,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })
@@ -465,6 +484,17 @@ async def gallery(request: Request):
             "title": j.get("title", ""),
             "thumbnail_url": j["thumbnail_url"],
             "prompt": prompt,
+            "beyond_words": image_decision.get("beyond_words") or "",
+            "visual_energy": image_decision.get("visual_energy") or "",
+            "texture": image_decision.get("texture") or "",
+            "palette": image_decision.get("palette") or "",
+            "temperature": image_decision.get("temperature") or "",
+            # Legacy
+            "style": image_decision.get("style") or "",
+            "medium": image_decision.get("medium") or "",
+            "artist_reference": image_decision.get("artist_reference") or "",
+            "concept": image_decision.get("concept") or "",
+            "why": image_decision.get("why") or "",
         })
     return templates.TemplateResponse("gallery.html", {
         "request": request,

@@ -41,7 +41,10 @@
           {% endif %}
           <div class="journal-card-body">
             <div class="card-meta">
-              <span class="badge" data-mode="{{ entry.mode }}">{{ entry.mode }}</span>
+              <span class="nav-split-badge">
+                <span class="split-cycle">C{{ entry.cycle }}</span>
+                <span class="split-phase" data-mode="{{ entry.mode }}">{{ entry.mode }}</span>
+              </span>
               <span class="card-date">{{ entry.date }}</span>
             </div>
             <div class="card-title">{% if entry.title %}{{ entry.title }}{% else %}Cycle {{ entry.cycle }}{% endif %}</div>

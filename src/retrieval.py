@@ -79,7 +79,8 @@ def _get_chroma_collection():
     import chromadb
 
     CHROMA_DIR.mkdir(parents=True, exist_ok=True)
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    settings = chromadb.config.Settings(anonymized_telemetry=False)
+    client = chromadb.PersistentClient(path=str(CHROMA_DIR), settings=settings)
     # Get or create; we supply embeddings on add so dimension comes from first add
     try:
         coll = client.get_collection(name="archive")

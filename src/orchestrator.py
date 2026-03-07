@@ -3,7 +3,7 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from .config import DATA_DIR, API_PROVIDER, CYCLE_INTERVAL_SECONDS, FORCE_IMAGE, MODEL_ID
+from .config import DATA_DIR, API_PROVIDER, CYCLE_INTERVAL_SECONDS, FORCE_IMAGE, IMAGE_MODEL, MODEL_ID
 from . import engine, journal, ledger, memory, monitor, resistance, retrieval
 from .models import ImageDecision, TransitionEntry
 
@@ -222,17 +222,17 @@ def run_cycle() -> bool:
     }
     # ── Phase C: post-cycle steps ─────────────────────────────────────────────
     # 3. Image generation (before journal render so image reference can be embedded)
-    if FORCE_IMAGE and (not output.image_decision.create or not output.image_decision.prompt):
+    if FORCE_IMAGE and not output.image_decision.create:
         fallback = (output.summary or manuscript.strip() or "Contemplative inquiry into meaning.").strip()
         if len(fallback) > 400:
             fallback = fallback[:397] + "..."
         output.image_decision = ImageDecision(create=True, prompt=fallback)
         logger.info("Cycle %s: FORCE_IMAGE=1, using prompt: %s", cycle, fallback[:80])
     image_path = None
-    if output.image_decision.create and output.image_decision.prompt:
+    if output.image_decision.create and (output.image_decision.prompt or output.image_decision.beyond_words or output.image_decision.concept):
         try:
             from . import images
-            image_path = images.generate_image(cycle, output.image_decision.prompt)
+            image_path = images.generate_image(cycle, output.image_decision)
         except Exception as _e:
             logger.warning("Phase C: image generation error (non-fatal): %s", _e)
 
@@ -285,6 +285,7 @@ def run_cycle() -> bool:
         "usage": usage,
         # Phase C additions
         "image_path": str(image_path) if image_path else None,
+        "image_model": IMAGE_MODEL if image_path else None,
     }
 
     # 4. Social posting (after building cycle_record so we can update it)

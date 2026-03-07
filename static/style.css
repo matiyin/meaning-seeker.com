@@ -130,7 +130,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .thesis-attribution a:hover{color:var(--link);text-decoration:none}
 .manuscript-explanation{font-size:var(--font-size-body);color:var(--text2);line-height:1.5;text-align:center;margin-bottom:0.75rem}
 /* Unified translucent blur for all grey/surface backgrounds */
-.surface-glass,.manuscript-body,.manuscript-excerpt-card,.gallery-card,.insight-item,.letterbox,.entry-tldr,.latest-visual-card,.latest-visual-caption,.slider-card,.journal-card:has(.journal-card-thumb),.journal-card-thumb,.confidence-info-icon,.confidence-popup,table th,pre,.markdown-body pre,.entry-hero-image-wrap,.phase-item,.btn-secondary{background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(0.75rem);-webkit-backdrop-filter:blur(0.75rem)}
+.surface-glass,.manuscript-body,.manuscript-excerpt-card,.gallery-card,.insight-item,.letterbox,.entry-tldr,.latest-visual-card,.latest-visual-caption,.slider-card,.journal-card:has(.journal-card-thumb),.journal-card-thumb,.confidence-info-icon,.confidence-popup,table th,pre,.markdown-body pre,.phase-item,.btn-secondary{background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(0.75rem);-webkit-backdrop-filter:blur(0.75rem)}
 .manuscript-excerpt-card{display:block;text-decoration:none;color:inherit;border:0.0625rem solid var(--sep);border-radius:0.875rem;padding:1.25rem 1.5rem 1.25rem;transition:border-color .15s,background .15s}
 .manuscript-excerpt-card:hover{background:color-mix(in srgb,var(--hover) 85%,transparent);border-color:var(--text3);text-decoration:none;color:inherit}
 .manuscript-excerpt-card .thesis-block{text-align:left;font-size:var(--font-size-body);line-height:1.65;color:var(--text)}
@@ -302,9 +302,28 @@ a.insight-item-link:hover{background:color-mix(in srgb,var(--hover) 85%,transpar
 .entry-title{font-size:calc(1.6 * var(--font-size-lg));font-weight:700;letter-spacing:-.025em;line-height:1.15;margin-bottom:0}
 .entry-meta{font-size:var(--font-size-sm);color:var(--text2)}
 
-.entry-hero-image-wrap{width:100%;margin:0 0 2.5rem;padding:0}
+.entry-hero-image-wrap{width:100%;margin:0 0 2.5rem;padding:0;background:transparent}
+.entry-hero-image-wrap:has(.gallery-card-prompt.expanded){background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(0.75rem);-webkit-backdrop-filter:blur(0.75rem)}
 .entry-hero-image{width:100%;display:block;vertical-align:top;object-fit:cover;border-radius:0.75rem}
 .entry-hero-image-clickable{cursor:pointer}
+.entry-hero-image-wrap .gallery-card-prompt-toggle{margin-top:0.5rem}
+
+/* Art direction tags — style / medium / artist displayed under image */
+.entry-art-direction{display:flex;flex-wrap:wrap;gap:0.375rem;padding:0.625rem 0 0}
+.entry-art-direction--card{padding:0.5rem 0.875rem 0}
+.entry-art-tag{display:inline-flex;align-items:center;font-size:var(--font-size-xs);color:var(--text2);background:color-mix(in srgb,var(--surface) 80%,transparent);border:0.0625rem solid var(--sep);border-radius:1rem;padding:0.2em 0.65em;line-height:1.4}
+.entry-art-tag--medium{color:var(--text3)}
+.entry-art-tag--artist{font-style:italic}
+.entry-art-tag--texture{color:var(--text3)}
+.entry-art-tag--temp{color:var(--text3);font-style:italic}
+
+/* Art direction detail text inside the expandable drawer */
+.art-detail-beyond{margin:0 0 0.5rem;color:var(--text);font-size:var(--font-size-sm);line-height:1.6}
+.art-detail-palette{margin:0 0 0.5rem;color:var(--text2);font-size:var(--font-size-sm)}
+.art-detail-concept{margin:0 0 0.5rem;color:var(--text);font-size:var(--font-size-sm)}
+.art-detail-why{margin:0 0 0.5rem;color:var(--text2);font-size:var(--font-size-sm)}
+.art-detail-prompt{margin:0;color:var(--text3);font-size:var(--font-size-xs);font-style:normal}
+.art-detail-beyond p,.art-detail-palette p,.art-detail-concept p,.art-detail-why p,.art-detail-prompt p{margin:0}
 
 /* TL;DR / summary callout (social distillation) — distinct from body blockquotes */
 .entry-tldr{margin:0 0 2rem;padding:1.25rem 1.5rem 1.25rem 1.75rem;border:0.0625rem solid var(--sep);border-left:0.25rem solid var(--link);border-radius:0 0.625rem 0.625rem 0}

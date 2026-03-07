@@ -56,7 +56,9 @@
       <li class="insight-item">
         <p style="color:var(--text2);margin-bottom:0.25rem">{{ reply.text }}</p>
         <div class="insight-meta">
-          <span class="badge" data-mode="explore">{{ reply.platform }}</span>
+          <span class="nav-split-badge">
+          <span class="split-phase" data-mode="explore">{{ reply.platform }}</span>
+        </span>
           {% if reply.timestamp %}{{ reply.timestamp[:10] }}{% endif %}
         </div>
       </li>

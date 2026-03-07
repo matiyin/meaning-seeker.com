@@ -104,7 +104,19 @@ class CommitmentUpdate(BaseModel):
 
 class ImageDecision(BaseModel):
     create: bool = False
-    prompt: Optional[str] = None
+    # What the text cannot say — the gap the image must fill
+    beyond_words: Optional[str] = None     # what this entry needs to show that the writing couldn't reach
+    visual_energy: Optional[str] = None    # the raw visual force: e.g. "violent contrast", "barely there", "dense and heavy"
+    texture: Optional[str] = None          # physical quality of the surface: e.g. "wet ink bleeding", "cracked earth", "molten glass"
+    palette: Optional[str] = None          # colour as emotion, not decoration
+    temperature: Optional[str] = None      # one word or phrase: "freezing", "feverish", "lukewarm", "white-hot"
+    prompt: Optional[str] = None           # final generation prompt — pure visual instruction, no art-historical names
+    # Legacy fields kept for backward compat with old cycle records
+    concept: Optional[str] = None
+    style: Optional[str] = None
+    medium: Optional[str] = None
+    artist_reference: Optional[str] = None
+    why: Optional[str] = None
 
 
 class CycleOutput(BaseModel):

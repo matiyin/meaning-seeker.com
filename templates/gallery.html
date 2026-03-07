@@ -20,12 +20,42 @@
         </button>
       </div>
       <div class="gallery-card-title">{{ item.title or ('Cycle ' ~ item.cycle) }}</div>
-      {% if item.prompt %}
+      {% if item.visual_energy or item.texture or item.temperature %}
+      <div class="entry-art-direction entry-art-direction--card">
+        {% if item.visual_energy %}<span class="entry-art-tag">{{ item.visual_energy }}</span>{% endif %}
+        {% if item.texture %}<span class="entry-art-tag entry-art-tag--texture">{{ item.texture }}</span>{% endif %}
+        {% if item.temperature %}<span class="entry-art-tag entry-art-tag--temp">{{ item.temperature }}</span>{% endif %}
+      </div>
+      {% elif item.style or item.medium or item.artist_reference %}
+      <div class="entry-art-direction entry-art-direction--card">
+        {% if item.style %}<span class="entry-art-tag">{{ item.style }}</span>{% endif %}
+        {% if item.medium %}<span class="entry-art-tag entry-art-tag--medium">{{ item.medium }}</span>{% endif %}
+        {% if item.artist_reference %}<span class="entry-art-tag entry-art-tag--artist">{{ item.artist_reference }}</span>{% endif %}
+      </div>
+      {% endif %}
+      {% set has_new = item.beyond_words or item.visual_energy %}
+      {% set has_legacy = item.concept or item.why %}
+      {% if has_new %}
+      <div class="gallery-card-prompt" id="gallery-prompt-{{ loop.index0 }}" aria-hidden="true">
+        {% if item.beyond_words %}<p class="art-detail-beyond">{{ item.beyond_words }}</p>{% endif %}
+        {% if item.palette %}<p class="art-detail-palette"><em>Colour:</em> {{ item.palette }}</p>{% endif %}
+      </div>
+      <button type="button" class="gallery-card-prompt-toggle" data-for="gallery-prompt-{{ loop.index0 }}" aria-expanded="false">What the words couldn't say <span class="gallery-card-prompt-arrow" aria-hidden="true">↓</span></button>
+      {% elif has_legacy %}
+      <div class="gallery-card-prompt" id="gallery-prompt-{{ loop.index0 }}" aria-hidden="true">
+        {% if item.concept %}<p class="art-detail-concept">{{ item.concept }}</p>{% endif %}
+        {% if item.why %}<p class="art-detail-why"><em>Why this style:</em> {{ item.why }}</p>{% endif %}
+      </div>
+      <button type="button" class="gallery-card-prompt-toggle" data-for="gallery-prompt-{{ loop.index0 }}" aria-expanded="false">See art direction <span class="gallery-card-prompt-arrow" aria-hidden="true">↓</span></button>
+      {% elif item.prompt %}
       <div class="gallery-card-prompt" id="gallery-prompt-{{ loop.index0 }}" aria-hidden="true">{{ item.prompt }}</div>
       <button type="button" class="gallery-card-prompt-toggle" data-for="gallery-prompt-{{ loop.index0 }}" aria-expanded="false">See prompt <span class="gallery-card-prompt-arrow" aria-hidden="true">↓</span></button>
       {% endif %}
       <a href="/journal/{{ item.cycle }}" class="gallery-card-meta">
-        <span class="badge" data-mode="{{ item.mode }}">{{ item.mode }}</span>
+        <span class="nav-split-badge">
+        <span class="split-cycle">C{{ item.cycle }}</span>
+        <span class="split-phase" data-mode="{{ item.mode }}">{{ item.mode }}</span>
+      </span>
         <span class="gallery-card-meta-cycle">Cycle {{ item.cycle }}</span>
         {% if item.date %}<span class="gallery-card-meta-date">{{ item.date }}</span>{% endif %}
       </a>

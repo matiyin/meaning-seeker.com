@@ -89,7 +89,8 @@ THREADS_PROFILE_URL: str = os.getenv("THREADS_PROFILE_URL", "")
 INSTAGRAM_PROFILE_URL: str = os.getenv("INSTAGRAM_PROFILE_URL", "")
 
 # Phase C: Image generation via OpenRouter (uses same API_KEY as main model)
-IMAGE_MODEL: str = os.getenv("IMAGE_MODEL", "black-forest-labs/flux.2-klein-4b")
+# Nano Banana Pro (Gemini 3 Pro Image Preview) — superior style fidelity and creative control
+IMAGE_MODEL: str = os.getenv("IMAGE_MODEL", "google/gemini-3-pro-image-preview")
 # Force image this cycle (for testing). When set, generate an image even if the model didn't ask for one; prompt from summary or thesis.
 FORCE_IMAGE: bool = os.getenv("FORCE_IMAGE", "").lower() in ("1", "true", "yes")
 

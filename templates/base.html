@@ -12,39 +12,40 @@
 <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
 <meta property="og:description" content="{% block og_description %}{{ self.description() }}{% endblock %}">
 <meta property="og:site_name" content="Meaning Seeker">
-<meta property="og:image" content="{{ site_url }}/assets/TheMeaningSeeker.jpg">
+<meta property="og:image" content="{{ site_url }}/assets/TheMeaningSeeker.jpg?v={{ static_version }}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ self.og_title() }}">
 <meta name="twitter:description" content="{{ self.og_description() }}">
-<meta name="twitter:image" content="{{ site_url }}/assets/TheMeaningSeeker.jpg">
-<link rel="icon" type="image/png" href="/static/assets/icons/favicon-96x96.png" sizes="96x96">
-<link rel="icon" type="image/svg+xml" href="/static/assets/icons/favicon.svg">
-<link rel="shortcut icon" href="/static/assets/icons/favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="/static/assets/icons/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
+<meta name="twitter:image" content="{{ site_url }}/assets/TheMeaningSeeker.jpg?v={{ static_version }}">
+<link rel="icon" type="image/png" href="/static/assets/icons/favicon-96x96.png?v={{ static_version }}" sizes="96x96">
+<link rel="icon" type="image/svg+xml" href="/static/assets/icons/favicon.svg?v={{ static_version }}">
+<link rel="shortcut icon" href="/static/assets/icons/favicon.ico?v={{ static_version }}">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/assets/icons/apple-touch-icon.png?v={{ static_version }}">
+<link rel="manifest" href="/site.webmanifest?v={{ static_version }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
 {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
 <canvas id="seeker-bg"></canvas>
 <nav class="nav">
   <a href="/" class="nav-brand">Meaning Seeker</a>
-  <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
-    <svg id="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    <svg id="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-  </button>
   <div class="nav-links">
     <a href="/journal"{% if active_nav == 'journal' %} class="active"{% endif %}>Journal</a>
     <a href="/manuscript"{% if active_nav == 'manuscript' %} class="active"{% endif %}>Manuscript</a>
+    <a href="/about"{% if active_nav == 'about' %} class="active"{% endif %}>About</a>
     <a href="/insights"{% if active_nav == 'insights' %} class="active"{% endif %}>Insights</a>
     <a href="/gallery"{% if active_nav == 'gallery' %} class="active"{% endif %}>Gallery</a>
     <a href="/challenge" class="btn btn-primary nav-challenge-btn nav-challenge-btn--mobile{% if active_nav == 'challenge' %} active{% endif %}">Submit a challenge</a>
   </div>
   <div class="nav-right">
     <a href="/challenge" class="btn btn-primary nav-challenge-btn nav-challenge-btn--desktop">Challenge</a>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+      <svg id="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
     <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">
       <span class="nav-menu-icon">?</span>
     </button>
@@ -56,8 +57,8 @@
 <footer class="site-footer">
   <div class="site-footer-inner">
     <div class="site-footer-bottom">
-      <span>Meaning Seeker — doing philosophy in public, one cycle at a time. By Creator 10101.</span>
-      <a href="https://github.com/matiyin/meaning-seeker.com" target="_blank" rel="noopener noreferrer">Source</a>
+      <span>Meaning Seeker — doing philosophy in public, one cycle at a time.</span>
+      <span>By Creator 10101</span>
     </div>
   </div>
 </footer>

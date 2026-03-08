@@ -6,6 +6,7 @@ Routes:
   GET  /journal             Journal list
   GET  /journal/{cycle}     Single journal entry
   GET  /gallery             Image gallery
+  GET  /about               About page
   GET  /insights            Insights page
   GET  /api/state           JSON: current state
   GET  /api/journals        JSON: journal list metadata
@@ -18,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from datetime import datetime, timezone
@@ -105,6 +107,19 @@ if _assets_icons.exists():
     app.mount("/icons", StaticFiles(directory=str(_assets_icons)), name="icons")
 
 templates = Jinja2Templates(directory=str(_templates_dir))
+
+
+def _static_version() -> str:
+    """Cache-busting version for static assets. Prefer STATIC_VERSION env; else use style.css mtime."""
+    if os.environ.get("STATIC_VERSION"):
+        return os.environ["STATIC_VERSION"]
+    style_css = _static_dir / "style.css"
+    if style_css.exists():
+        return str(int(style_css.stat().st_mtime))
+    return "0"
+
+
+templates.env.globals["static_version"] = _static_version()
 
 
 def _format_shift_desc(text: str) -> str:
@@ -366,14 +381,38 @@ async def home(request: Request):
     })
 
 
+def _journal_mode_counts(journals: list) -> dict[str, int]:
+    """Count journal entries per mode for filter bar. Keys: all, explore, synthesize, critique, evolve, sit, confess, other."""
+    known = {"explore", "synthesize", "critique", "evolve", "sit", "confess"}
+    counts: dict[str, int] = {
+        "all": len(journals),
+        "explore": 0,
+        "synthesize": 0,
+        "critique": 0,
+        "evolve": 0,
+        "sit": 0,
+        "confess": 0,
+        "other": 0,
+    }
+    for j in journals:
+        mode = (j.get("mode") or "").strip().lower()
+        if mode in known:
+            counts[mode] = counts.get(mode, 0) + 1
+        elif mode:
+            counts["other"] += 1
+    return counts
+
+
 @app.get("/journal", response_class=HTMLResponse)
 async def journal_list(request: Request):
     journals = _list_journals()
+    mode_counts = _journal_mode_counts(journals)
     return templates.TemplateResponse("journal_list.html", {
         "request": request,
         "active_nav": "journal",
         "journals": journals,
         "journals_json": json.dumps(journals),
+        "mode_counts": mode_counts,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })
@@ -501,6 +540,26 @@ async def gallery(request: Request):
         "active_nav": "gallery",
         "gallery_items": gallery_items,
         "gallery_items_json": json.dumps(gallery_items),
+        "site_url": SITE_URL,
+        "site_name": SITE_NAME,
+    })
+
+
+@app.get("/about", response_class=HTMLResponse)
+async def about_page(request: Request):
+    social_profile_links = []
+    if X_PROFILE_URL.strip():
+        social_profile_links.append({"name": "X", "url": X_PROFILE_URL.strip()})
+    if BLUESKY_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Bluesky", "url": BLUESKY_PROFILE_URL.strip()})
+    if THREADS_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Threads", "url": THREADS_PROFILE_URL.strip()})
+    if INSTAGRAM_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
+    return templates.TemplateResponse("about.html", {
+        "request": request,
+        "active_nav": "about",
+        "social_profile_links": social_profile_links,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })

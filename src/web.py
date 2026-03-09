@@ -181,12 +181,13 @@ def _load_json(path: Path, default):
 
 def _load_state() -> dict:
     raw = _load_json(DATA_DIR / "state.json", {})
-    # Determine live status: state file modified within last 15 min
+    # Live status: state modified within live window (min 15 min, or full cycle interval for long cycles)
     state_path = DATA_DIR / "state.json"
     if state_path.exists():
         import os
         mtime_ms = state_path.stat().st_mtime * 1000
-        raw["_live"] = (time.time() * 1000 - mtime_ms) < 15 * 60 * 1000
+        live_window_ms = max(15 * 60, CYCLE_INTERVAL_SECONDS) * 1000
+        raw["_live"] = (time.time() * 1000 - mtime_ms) < live_window_ms
         raw["_lastModifiedMs"] = int(mtime_ms)
         raw["_lastModified"] = datetime.fromtimestamp(
             state_path.stat().st_mtime, tz=timezone.utc

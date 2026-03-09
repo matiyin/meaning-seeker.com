@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,9 +35,11 @@ from fastapi.templating import Jinja2Templates
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from .config import (
     BLUESKY_PROFILE_URL,
+    CSRF_SECRET,
     DATA_DIR,
     INSTAGRAM_PROFILE_URL,
     SITE_NAME,
@@ -81,6 +84,36 @@ def _add_blocked_hash(ip_hash: str) -> None:
         json.dumps(sorted(hashes), indent=0), encoding="utf-8"
     )
     logger.info("Blocked IP hash added to blocklist (harmful submission)")
+
+
+_csrf_serializer: URLSafeTimedSerializer | None = None
+
+
+def _get_csrf_serializer() -> URLSafeTimedSerializer:
+    global _csrf_serializer
+    if _csrf_serializer is None:
+        _csrf_serializer = URLSafeTimedSerializer(CSRF_SECRET, salt="csrf")
+        if CSRF_SECRET == "dev-only-change-in-production":
+            logger.warning("CSRF_SECRET not set — using default. Set CSRF_SECRET in production.")
+    return _csrf_serializer
+
+
+def _generate_csrf_token(max_age_seconds: int = 3600) -> str:
+    """Generate a time-limited CSRF token (valid for max_age_seconds)."""
+    payload = secrets.token_hex(16)
+    return _get_csrf_serializer().dumps(payload)
+
+
+def _verify_csrf_token(token: str, max_age_seconds: int = 3600) -> bool:
+    """Verify a CSRF token; returns False if invalid or expired."""
+    if not token or not token.strip():
+        return False
+    try:
+        _get_csrf_serializer().loads(token, max_age=max_age_seconds)
+        return True
+    except BadSignature:
+        return False
+
 
 BASE = Path(__file__).parent.parent
 
@@ -363,6 +396,16 @@ async def home(request: Request):
 
     manuscript_excerpt_html = _render_md(manuscript_excerpt) if manuscript_excerpt else ""
 
+    social_profile_links = []
+    if X_PROFILE_URL.strip():
+        social_profile_links.append({"name": "X", "url": X_PROFILE_URL.strip()})
+    if BLUESKY_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Bluesky", "url": BLUESKY_PROFILE_URL.strip()})
+    if THREADS_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Threads", "url": THREADS_PROFILE_URL.strip()})
+    if INSTAGRAM_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
+
     return templates.TemplateResponse("home.html", {
         "request": request,
         "active_nav": "home",
@@ -376,6 +419,7 @@ async def home(request: Request):
         "slider_entries": slider_entries,
         "manuscript_excerpt": manuscript_excerpt,
         "manuscript_excerpt_html": manuscript_excerpt_html,
+        "social_profile_links": social_profile_links,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })
@@ -407,12 +451,22 @@ def _journal_mode_counts(journals: list) -> dict[str, int]:
 async def journal_list(request: Request):
     journals = _list_journals()
     mode_counts = _journal_mode_counts(journals)
+    social_profile_links = []
+    if X_PROFILE_URL.strip():
+        social_profile_links.append({"name": "X", "url": X_PROFILE_URL.strip()})
+    if BLUESKY_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Bluesky", "url": BLUESKY_PROFILE_URL.strip()})
+    if THREADS_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Threads", "url": THREADS_PROFILE_URL.strip()})
+    if INSTAGRAM_PROFILE_URL.strip():
+        social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
     return templates.TemplateResponse("journal_list.html", {
         "request": request,
         "active_nav": "journal",
         "journals": journals,
         "journals_json": json.dumps(journals),
         "mode_counts": mode_counts,
+        "social_profile_links": social_profile_links,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })
@@ -649,6 +703,7 @@ async def challenge_page(request: Request):
         "social_profile_links": social_profile_links,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
+        "csrf_token": _generate_csrf_token(),
     })
 
 
@@ -719,7 +774,12 @@ async def submit_challenge(
     request: Request,
     challenge: str = Form(...),
     website: str = Form(""),  # honeypot
+    csrf_token: str = Form(""),
 ):
+    # CSRF check — reject if token missing or invalid
+    if not _verify_csrf_token(csrf_token):
+        raise HTTPException(403, detail="Invalid or expired form. Please refresh the page and try again.")
+
     # Honeypot check — bots fill this hidden field
     if website.strip():
         return JSONResponse({"status": "ok", "message": "Thank you for your contribution."})

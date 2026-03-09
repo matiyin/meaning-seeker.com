@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Run inquiry + web in the background with optional log tail.
+# Usage:
+#   ./run-all              # start both in background (logs in logs/)
+#   ./run-all stop         # stop both
+#   ./run-all tail         # tail -f both logs (Ctrl+C to stop tailing)
+#   ./run-all tail inquiry # tail only inquiry log
+#   ./run-all tail web     # tail only web log
+set -e
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
+LOG_DIR="$ROOT/logs"
+PID_FILE="$ROOT/.run-all.pids"
+INQUIRY_LOG="$LOG_DIR/inquiry.log"
+WEB_LOG="$LOG_DIR/web.log"
+
+mkdir -p "$LOG_DIR"
+
+stop_processes() {
+  if [[ ! -f "$PID_FILE" ]]; then
+    echo "No .run-all.pids found; nothing to stop."
+    return 0
+  fi
+  source "$PID_FILE" 2>/dev/null || true
+  for label in inquiry web; do
+    pid_var="${label}_pid"
+    pid="${!pid_var}"
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      echo "Stopped $label (PID $pid)"
+    fi
+  done
+  rm -f "$PID_FILE"
+}
+
+start_processes() {
+  if [[ -f "$PID_FILE" ]]; then
+    source "$PID_FILE" 2>/dev/null || true
+    if [[ -n "$inquiry_pid" ]] && kill -0 "$inquiry_pid" 2>/dev/null; then
+      echo "Inquiry already running (PID $inquiry_pid). Use: ./run-all stop"
+      exit 1
+    fi
+    if [[ -n "$web_pid" ]] && kill -0 "$web_pid" 2>/dev/null; then
+      echo "Web already running (PID $web_pid). Use: ./run-all stop"
+      exit 1
+    fi
+    rm -f "$PID_FILE"
+  fi
+
+  echo "Starting inquiry (log: $INQUIRY_LOG)"
+  ./run >> "$INQUIRY_LOG" 2>&1 &
+  inquiry_pid=$!
+  echo "Starting web (log: $WEB_LOG)"
+  ./run-web >> "$WEB_LOG" 2>&1 &
+  web_pid=$!
+
+  echo "inquiry_pid=$inquiry_pid" > "$PID_FILE"
+  echo "web_pid=$web_pid" >> "$PID_FILE"
+  echo "Inquiry PID $inquiry_pid, web PID $web_pid. Tail logs: ./run-all tail"
+}
+
+tail_logs() {
+  which="$1"
+  case "$which" in
+    inquiry) tail -f "$INQUIRY_LOG" ;;
+    web)     tail -f "$WEB_LOG" ;;
+    "")
+      echo "Tailing both logs (Ctrl+C to stop)."
+      tail -f "$INQUIRY_LOG" "$WEB_LOG"
+      ;;
+    *)
+      echo "Usage: ./run-all tail [inquiry|web]"
+      exit 1
+      ;;
+  esac
+}
+
+case "${1:-start}" in
+  start)  start_processes ;;
+  stop)   stop_processes ;;
+  tail)   tail_logs "${2:-}" ;;
+  *)
+    echo "Usage: ./run-all [start|stop|tail [inquiry|web]]"
+    exit 1
+    ;;
+esac

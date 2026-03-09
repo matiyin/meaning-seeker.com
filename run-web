@@ -10,8 +10,10 @@ if [[ ! -x "$ROOT/$PYTHON" ]]; then
   PYTHON="python3"
 fi
 
-HOST="${WEB_HOST:-0.0.0.0}"
+# 127.0.0.1: only listen locally (Caddy proxies from 80/443). Set WEB_HOST=0.0.0.0 for direct access.
+HOST="${WEB_HOST:-127.0.0.1}"
 PORT="${WEB_PORT:-3000}"
 
 echo "Starting web server at http://localhost:${PORT}"
-exec "$ROOT/$PYTHON" -m uvicorn src.web:app --host "$HOST" --port "$PORT" --reload
+exec "$ROOT/$PYTHON" -m uvicorn src.web:app --host "$HOST" --port "$PORT" --reload \
+  --proxy-headers --forwarded-allow-ips 127.0.0.1

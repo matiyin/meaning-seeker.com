@@ -1,0 +1,10 @@
+# fail2ban jail config for meaning-seeker.com server
+# Copy to /etc/fail2ban/jail.local
+
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+
+[sshd]
+enabled = true

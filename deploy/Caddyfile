@@ -1,0 +1,13 @@
+# Production Caddyfile for meaning-seeker.com
+# Copy to /etc/caddy/Caddyfile on the server
+
+meaning-seeker.com {
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy interest-cohort=()
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	}
+	reverse_proxy localhost:3000
+}

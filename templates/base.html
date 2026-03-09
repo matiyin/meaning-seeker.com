@@ -58,7 +58,7 @@
   <div class="site-footer-inner">
     <div class="site-footer-bottom">
       <span>Meaning Seeker — doing philosophy in public, one cycle at a time.</span>
-      <span>By Creator 10101</span>
+      <span>By <a href="/about#creator-10101">Creator 10101</a></span>
     </div>
   </div>
 </footer>
@@ -93,6 +93,20 @@
   document.querySelectorAll('.nav-links a').forEach(function(a){
     a.addEventListener('click',function(){setOpen(false);});
   });
+})();
+(function(){
+  function scrollToHash(){
+    var h=window.location.hash;if(!h)return;
+    var el=document.querySelector(h);if(!el)return;
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        el.scrollIntoView({behavior:'smooth',block:'start'});
+      });
+    });
+  }
+  if(document.readyState==='complete')scrollToHash();
+  else window.addEventListener('load',scrollToHash);
+  window.addEventListener('hashchange',scrollToHash);
 })();
 </script>
 <script>(function(){

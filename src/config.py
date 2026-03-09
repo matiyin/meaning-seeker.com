@@ -57,9 +57,12 @@ MOVE_LOG_SIZE: int = 20
 PATTERN_THRESHOLD_SAME_MOVE: int = 5  # same move in 5 of last 10 cycles
 PATTERN_THRESHOLD_NO_GROUNDING: int = 6  # no "concrete grounding" for 12+ cycles
 
-# Phase C: Web server
-WEB_HOST: str = os.getenv("WEB_HOST", "0.0.0.0")
+# Phase C: Web server (127.0.0.1 when behind Caddy; 0.0.0.0 for direct access)
+WEB_HOST: str = os.getenv("WEB_HOST", "127.0.0.1")
 WEB_PORT: int = int(os.getenv("WEB_PORT", "3000"))
+
+# Phase C: CSRF protection for submission form (set in production)
+CSRF_SECRET: str = os.getenv("CSRF_SECRET", "dev-only-change-in-production")
 
 # Phase C: Submission rate limiting
 SUBMISSION_RATE_LIMIT: str = os.getenv("SUBMISSION_RATE_LIMIT", "3/hour")

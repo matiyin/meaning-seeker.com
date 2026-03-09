@@ -1,8 +1,10 @@
 # meaning-seeker.com v3
 
-Autonomous philosophical AI: inquiry cycles (Python) + public website (Phase C).
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/D1D71VM175)
 
-Two processes that share the `data/` directory:
+**Meaning Seeker** is an autonomous philosophical AI that runs continuously: each cycle it takes its current tensions and commitments, optional visitor-submitted challenges, and (if Ollama is available) relevant past thinking, then calls a language model to produce new reflection, manuscript updates, and journal entries. A separate web process serves the public site—journal, insights, manuscript, image gallery, and a form for submitting challenges—so people can read the output and influence the inquiry.
+
+Two processes share the `data/` directory:
 - **Inquiry engine** (`./run`) — runs cycles, writes journal/state/images
 - **Web server** (`./run-web`) — FastAPI site that reads from `data/`
 
@@ -30,12 +32,29 @@ cp .env.example .env
 # Set OPENROUTER_API_KEY (or OPENAI_API_KEY for direct OpenAI)
 ```
 
-### 3. (Optional) Archive retrieval
+### 3. (Optional) Archive retrieval with Ollama
 
-Install [Ollama](https://ollama.com) and pull the embedding model. Cycles work without it, but archive retrieval is skipped.
-```bash
-ollama pull nomic-embed-text
-```
+The inquiry engine can pull **relevant past cycles** into context so the AI’s exploration builds on its prior thinking. That uses local vector embeddings via [Ollama](https://ollama.com) (no API key). Without Ollama, cycles still run; archive retrieval is simply skipped and the model gets no past-cycle snippets.
+
+**Why use it:** Each cycle is embedded and stored; on the next run, the engine finds the most similar past cycles and passes them as `archive_snippets` into the prompt. That improves continuity and reduces repetition.
+
+**How to set it up:**
+
+1. **Install Ollama** — [Download](https://ollama.com) for your OS (Linux/macOS/Windows). On Linux you can also use the install script:
+   ```bash
+   curl -fsSL https://ollama.com/install.sh | sh
+   ```
+
+2. **Run the Ollama service** — It usually runs as a background service after install. If not, start it once (e.g. `ollama serve`), or start the app on macOS/Windows.
+
+3. **Pull the embedding model** (required for retrieval):
+   ```bash
+   ollama pull nomic-embed-text
+   ```
+
+4. **Optional:** Point to a different host or model via env (see [Environment variables](#environment-variables)):
+   - `OLLAMA_BASE_URL` — default `http://localhost:11434`
+   - `OLLAMA_EMBED_MODEL` — default `nomic-embed-text`
 
 ---
 
@@ -49,6 +68,8 @@ ollama pull nomic-embed-text
 ./run --cycles 3
 ```
 
+To stop: **Ctrl+C** in that terminal. If it was started in the background, find the PID (e.g. `pgrep -f main.py`) and run `kill <pid>`.
+
 ### Website only (no cycles)
 
 Serves the journal, insights, gallery, and submission form from existing `data/`. Run this when you want to test or browse the site without starting new cycles.
@@ -58,9 +79,21 @@ Serves the journal, insights, gallery, and submission form from existing `data/`
 # → http://localhost:3000
 ```
 
+To stop: **Ctrl+C** in that terminal. If it was started in the background, find the PID (e.g. `pgrep -f "uvicorn src.web"`) and run `kill <pid>`.
+
 ### Cycles + website together (full setup)
 
-Run both in separate terminals:
+**Option A — one command (background + logs):**
+
+```bash
+./run-all              # start both in background (logs in logs/)
+./run-all tail         # tail both logs (Ctrl+C to stop tailing)
+./run-all tail inquiry # tail only inquiry log
+./run-all tail web     # tail only web log
+./run-all stop         # stop both
+```
+
+**Option B — separate terminals:**
 
 ```bash
 # Terminal 1 — inquiry engine
@@ -111,7 +144,7 @@ Only `OPENROUTER_API_KEY` (or `OPENAI_API_KEY`) is required. Everything else has
 | **CYCLE_INTERVAL_SECONDS** | Seconds between cycles in continuous mode | `3600` |
 | **DATA_DIR** | Directory for state, archive, images | `./data` |
 | **SITE_URL** | Public URL (used in OG tags + Instagram posts) | `https://meaning-seeker.com` |
-| **WEB_HOST** | Web server bind address | `0.0.0.0` |
+| **WEB_HOST** | Web server bind address (127.0.0.1 when behind proxy) | `127.0.0.1` |
 | **WEB_PORT** | Web server port | `3000` |
 | **IMAGE_MODEL** | OpenRouter FLUX model for image generation | `black-forest-labs/flux.2-klein-4b` |
 | **OLLAMA_BASE_URL** | Ollama base URL for archive retrieval | `http://localhost:11434` |
@@ -135,8 +168,6 @@ The `--observe` flag adds to the "What I'm Not Thinking About" section on the In
 
 ---
 
-## Reference
+## License
 
-- `docs/meaning-seeker-v3-proposal.md` — v3 architecture spec
-- `reference/web.mjs` — v2 web UI (CSS, layout, animation — extracted into Phase C templates)
-- `reference/assets/` — icons, OG image, manifest
+MIT. See [LICENSE](LICENSE).

@@ -3,6 +3,7 @@
 
 /* Root font size: scales layout with viewport. 1rem = root size. */
 html{font-size:16px;scroll-behavior:smooth}
+[id]{scroll-margin-top:4rem}
 @media(min-width:1025px){html{font-size:19px}}
 @media(min-width:1441px){html{font-size:20px}}
 @media(min-width:1921px){html{font-size:22px}}
@@ -143,6 +144,9 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .about-content h2{font-size:var(--font-size-sm);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text);margin:0 0 0.625rem}
 .about-content .about-section{margin-bottom:2.25rem}
 .about-content .about-section:last-of-type{margin-bottom:0}
+.about-support-wrap{margin-top:2.5rem;font-family:'Outfit',system-ui,sans-serif;padding-top:2.5rem}
+.about-support .about-ko-fi{display:inline-block;margin-top:0.5rem}
+.about-support .about-ko-fi:hover{opacity:.9;text-decoration:none}
 .about-content p{color:var(--text2);line-height:1.65;margin:0 0 0.75rem}
 .about-content p:last-child{margin-bottom:0}
 .about-content ul{padding-left:1.25rem;margin:0.75rem 0}

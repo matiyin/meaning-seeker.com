@@ -33,7 +33,7 @@
   {% elif state.get('_live') %}
   <div class="status-banner status-ok">
     <span class="status-banner-icon">●</span>
-    <div><strong>Running</strong> — cycle {{ current_cycle }}, mode: {{ state.get('mode', '?') }}</div>
+    <div><strong>Running</strong> — cycle {{ current_cycle }}</div>
   </div>
   {% else %}
   <div class="status-banner status-warn">

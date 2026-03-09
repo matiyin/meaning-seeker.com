@@ -39,6 +39,7 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from .config import (
     BLUESKY_PROFILE_URL,
+    CYCLE_INTERVAL_SECONDS,
     CSRF_SECRET,
     DATA_DIR,
     INSTAGRAM_PROFILE_URL,
@@ -406,10 +407,16 @@ async def home(request: Request):
     if INSTAGRAM_PROFILE_URL.strip():
         social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
 
+    # Next run: last activity + cycle interval (for ticker countdown)
+    last_ms = state.get("_lastModifiedMs") or 0
+    next_run_at_ms = last_ms + CYCLE_INTERVAL_SECONDS * 1000 if last_ms else 0
+
     return templates.TemplateResponse("home.html", {
         "request": request,
         "active_nav": "home",
         "state": state,
+        "cycle_interval_seconds": CYCLE_INTERVAL_SECONDS,
+        "next_run_at_ms": next_run_at_ms,
         "journals": journals,
         "active_tensions": active_tensions,
         "active_commitments": active_commitments,

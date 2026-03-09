@@ -62,6 +62,8 @@ start_processes() {
 
 tail_logs() {
   which="$1"
+  touch "$INQUIRY_LOG" 2>/dev/null || true
+  touch "$WEB_LOG" 2>/dev/null || true
   case "$which" in
     inquiry) tail -f "$INQUIRY_LOG" ;;
     web)     tail -f "$WEB_LOG" ;;

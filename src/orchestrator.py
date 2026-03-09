@@ -64,6 +64,9 @@ def run_cycle() -> bool:
 
     logger.info("--- Cycle %s starting at %s ---", cycle, timestamp)
 
+    # Touch state so web shows "Running" during long cycles (state mtime < 15 min)
+    (DATA_DIR / "state.json").touch()
+
     # Silence: skip engine, write minimal journal, decrement remaining
     if state.silence and state.silence.get("active") and state.silence.get("remaining", 0) > 0:
         state.cycle = cycle

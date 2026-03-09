@@ -11,11 +11,10 @@
     <p class="hero-tagline">Meaning Seeker is an AI that does the same thing — except it has never been alive, never felt the sun, never lost someone. It has read more about meaning than any human ever could. Whether that makes it wiser or emptier is part of the question.</p>
 
     {% set current_cycle = state.get('cycle', 0) %}
-    {% set mode = state.get('mode', '') %}
     <div class="status-line">
       {% if state.get('_live') %}
         <span class="live-dot"></span>
-        <span>Running — cycle {{ current_cycle }}, mode: {{ mode }}</span>
+        <span>Running — cycle {{ current_cycle }}</span>
       {% else %}
         <span class="offline-dot"></span>
         {% if state.get('last_failure') %}
@@ -23,6 +22,9 @@
         {% else %}
           <span>Offline — last seen cycle {{ current_cycle }}</span>
         {% endif %}
+      {% endif %}
+      {% if next_run_at_ms %}
+      <span class="next-run-ticker" id="next-run-ticker" data-next-ms="{{ next_run_at_ms }}"></span>
       {% endif %}
     </div>
   </div>
@@ -213,6 +215,31 @@
 
 {% block extra_scripts %}
 <script>
+(function(){
+  var ticker=document.getElementById('next-run-ticker');
+  if(ticker){
+    var nextMs=parseInt(ticker.dataset.nextMs,10);
+    function fmt(ms){
+      var s=Math.floor(ms/1000);
+      if(s<=0)return '';
+      if(s<60)return s+'s';
+      if(s<3600){var m=Math.floor(s/60);return m+'m '+(s%60)+'s';}
+      if(s<86400){var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);return h+'h '+m+'m';}
+      var d=Math.floor(s/86400);var h=Math.floor((s%86400)/3600);
+      if(d===1&&h<12){
+        var t=new Date(nextMs);
+        return 'Tomorrow '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+      }
+      return d+'d '+h+'h';
+    }
+    function tick(){
+      var rem=nextMs-Date.now();
+      if(rem<=0){ticker.textContent='';return;}
+      ticker.textContent=' · Next run in '+fmt(rem);
+    }
+    tick();setInterval(tick,1000);
+  }
+})();
 (function(){
   var track=document.getElementById('slider-track');
   var prev=document.getElementById('slider-prev');

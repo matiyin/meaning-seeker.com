@@ -297,6 +297,53 @@ requestAnimationFrame(draw);
   });
 })();
 </script>
+<div id="explain-modal" class="explain-modal" role="dialog" aria-modal="true" aria-labelledby="explain-modal-title" aria-hidden="true">
+  <div class="explain-modal-backdrop" aria-hidden="true"></div>
+  <div class="explain-modal-dialog">
+    <button type="button" class="explain-modal-close" aria-label="Close">×</button>
+    <div id="explain-modal-body" class="explain-modal-content"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var modal=document.getElementById('explain-modal');
+  var body=document.getElementById('explain-modal-body');
+  var closeBtn=modal&&modal.querySelector('.explain-modal-close');
+  var backdrop=modal&&modal.querySelector('.explain-modal-backdrop');
+  function close(){
+    if(!modal)return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+    if(body)body.innerHTML='';
+  }
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    if(!t||!t.closest)return;
+    var trigger=t.closest('.explain-trigger');
+    if(trigger&&modal&&body){
+      var id=trigger.getAttribute('data-explain-target');
+      var src=id?document.getElementById(id):null;
+      if(src){
+        body.innerHTML='';
+        var clone=src.cloneNode(true);
+        clone.removeAttribute('hidden');
+        body.appendChild(clone);
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden','false');
+        document.body.style.overflow='hidden';
+        var firstFocus=body.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if(firstFocus)firstFocus.focus();
+      }
+      return;
+    }
+    if(t===backdrop||t===closeBtn)close();
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&modal&&modal.classList.contains('open'))close();
+  });
+})();
+</script>
 {% block extra_scripts %}{% endblock %}
 </body>
 </html>

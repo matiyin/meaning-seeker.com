@@ -294,6 +294,29 @@ pre code{background:none;padding:0;color:var(--text);font-size:var(--font-size-s
 .gallery-card-prompt-toggle{font-size:var(--font-size-xs);color:var(--text3);cursor:pointer;margin:0 0.875rem 0.5rem;padding:0;display:inline-block;background:none;border:none;text-align:left;font-family:inherit;transition:color .15s}
 .gallery-card-prompt-toggle:hover{color:var(--text2);text-decoration:underline}
 .gallery-card-prompt-arrow{font-size:var(--font-size-xs);opacity:.85;margin-left:0.125rem}
+/* Reusable explain modal — centered, max-width; trigger uses link color, no underline */
+.explain-trigger{font-size:var(--font-size-xs);color:var(--text3);cursor:pointer;background:none;border:none;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:0.35em;transition:color .15s;text-decoration:none}
+.explain-trigger:hover{color:var(--link);text-decoration:none}
+.explain-icon{display:inline-flex;align-items:center;justify-content:center;width:1.1em;height:1.1em;font-size:1em;font-weight:600;color:inherit;border:0.0625rem solid currentColor;border-radius:50%;flex-shrink:0}
+.explain-modal{position:fixed;inset:0;z-index:1001;display:flex;align-items:center;justify-content:center;padding:1.5rem;opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s}
+.explain-modal.open{opacity:1;visibility:visible}
+.explain-modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(0.25rem);cursor:pointer}
+[data-theme="light"] .explain-modal-backdrop,html:not([data-theme="dark"]) .explain-modal-backdrop{background:rgba(255,255,255,.75);backdrop-filter:blur(0.35rem)}
+.explain-modal-dialog{position:relative;max-width:36rem;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);border-radius:0.75rem;border:0.0625rem solid var(--sep);box-shadow:0 1rem 3rem rgba(0,0,0,.25)}
+.explain-modal-close{position:absolute;top:0.75rem;right:0.75rem;z-index:2;appearance:none;border:none;background:var(--surface);color:var(--text2);width:2rem;height:2rem;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.25rem;line-height:1;transition:background .15s,color .15s;box-shadow:0 0 0 0.0625rem var(--sep)}
+.explain-modal-close:hover{background:var(--hover);color:var(--text)}
+.explain-modal-content{font-size:var(--font-size-sm);color:var(--text2);line-height:1.55;overflow:auto;flex:1;min-height:0;padding:1.5rem 1.75rem 3rem 1.5rem;padding-top:3rem}
+.explain-modal-content h1{font-size:var(--font-size-lg);font-weight:700;color:var(--text);margin:0 0 1rem;letter-spacing:-.02em}
+.explain-modal-content h2{font-size:var(--font-size-sm);font-weight:600;color:var(--text);margin:1.5rem 0 0.75rem}
+.explain-modal-content h2:first-of-type{margin-top:0}
+.explain-modal-content p{margin:0 0 1rem}
+.explain-modal-content dl{margin:0 0 1.25rem}
+.explain-modal-content dt{font-weight:500;color:var(--text);margin-top:0.5rem}
+.explain-modal-content dt:first-child{margin-top:0}
+.explain-modal-content dd{margin:0.2em 0 0 1em}
+.explain-modal-content code{font-size:0.9em;background:var(--surface);padding:0.15em 0.4em;border-radius:0.25rem}
+.explain-modal-content pre{font-size:var(--font-size-xs);color:var(--text2);line-height:1.55;white-space:pre-wrap;word-break:break-word;margin:0;padding:1rem;background:var(--surface);border-radius:0.5rem;border:0.0625rem solid var(--sep);overflow-x:auto}
+.gallery-how-generated-wrap{margin-top:1rem;margin-bottom:0}
 .gallery-empty{text-align:center;padding:4rem 1.5rem;color:var(--text2)}
 .paradigm-shift-list{font-size:var(--font-size-body);color:var(--text2);line-height:1.65;margin:0 0 2rem;padding-left:1.25rem;display:flex;flex-direction:column;gap:0.5rem}
 .paradigm-shift-list li{padding-left:0.25rem}

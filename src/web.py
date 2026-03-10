@@ -37,12 +37,15 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
+from .art_direction import ART_DIRECTION_PROMPT
 from .config import (
     BLUESKY_PROFILE_URL,
     CYCLE_INTERVAL_SECONDS,
     CSRF_SECRET,
     DATA_DIR,
+    IMAGE_MODEL,
     INSTAGRAM_PROFILE_URL,
+    MODEL_ID,
     SITE_NAME,
     SITE_URL,
     SUBMISSION_MAX_LENGTH,
@@ -602,6 +605,9 @@ async def gallery(request: Request):
         "active_nav": "gallery",
         "gallery_items": gallery_items,
         "gallery_items_json": json.dumps(gallery_items),
+        "art_direction_prompt": ART_DIRECTION_PROMPT,
+        "inquiry_model": MODEL_ID,
+        "image_model": IMAGE_MODEL,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })

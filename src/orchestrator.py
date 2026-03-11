@@ -1,9 +1,17 @@
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from .config import DATA_DIR, API_PROVIDER, CYCLE_INTERVAL_SECONDS, FORCE_IMAGE, IMAGE_MODEL, MODEL_ID
+from .config import (
+    CYCLE_DAILY_AT_UTC_PARSED,
+    CYCLE_INTERVAL_SECONDS,
+    DATA_DIR,
+    API_PROVIDER,
+    FORCE_IMAGE,
+    IMAGE_MODEL,
+    MODEL_ID,
+)
 from . import engine, journal, ledger, memory, monitor, resistance, retrieval
 from .models import ImageDecision, TransitionEntry
 
@@ -12,6 +20,17 @@ logger = logging.getLogger(__name__)
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _seconds_until_next_daily_run() -> int | None:
+    """If CYCLE_DAILY_AT_UTC is set, return seconds until next occurrence. Else None."""
+    if not CYCLE_DAILY_AT_UTC_PARSED:
+        return None
+    hour, minute = CYCLE_DAILY_AT_UTC_PARSED
+    now = datetime.now(timezone.utc)
+    today_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    next_run = today_at if now < today_at else today_at + timedelta(days=1)
+    return max(0, int((next_run - now).total_seconds()))
 
 
 def _sum_usage(*usage_dicts: dict | None) -> dict:
@@ -328,6 +347,29 @@ def run(max_cycles: int | None = None) -> None:
     logger.info("Meaning Seeker starting" + (f" (run {max_cycles} cycles)" if max_cycles else ""))
     memory.init_dirs()
 
+    def sleep_until_next() -> None:
+        sleep_sec = _seconds_until_next_daily_run()
+        if sleep_sec is not None:
+            hour, minute = CYCLE_DAILY_AT_UTC_PARSED
+            logger.info(
+                "Sleeping until next cycle at %02d:%02d UTC (%ds)",
+                hour,
+                minute,
+                sleep_sec,
+            )
+        else:
+            logger.info("Sleeping %ss until next cycle", CYCLE_INTERVAL_SECONDS)
+            sleep_sec = CYCLE_INTERVAL_SECONDS
+        time.sleep(sleep_sec)
+
+    # When using daily-at, sleep until next scheduled time before first run
+    if CYCLE_DAILY_AT_UTC_PARSED:
+        try:
+            sleep_until_next()
+        except KeyboardInterrupt:
+            logger.info("Shutting down")
+            return
+
     successful_cycles = 0
     while True:
         try:
@@ -342,9 +384,8 @@ def run(max_cycles: int | None = None) -> None:
         except Exception as e:
             logger.exception("Unhandled error in cycle: %s", e)
 
-        logger.info("Sleeping %ss until next cycle", CYCLE_INTERVAL_SECONDS)
         try:
-            time.sleep(CYCLE_INTERVAL_SECONDS)
+            sleep_until_next()
         except KeyboardInterrupt:
             logger.info("Shutting down")
             return

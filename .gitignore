@@ -13,6 +13,25 @@ reference/.env
 # Internal docs (see reference/docs/ for v2-v3 design docs)
 docs/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg
+
 # Logs and OS
 *.log
 .DS_Store

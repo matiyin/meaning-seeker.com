@@ -23,7 +23,7 @@ import os
 import re
 import secrets
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -40,6 +40,7 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from .art_direction import ART_DIRECTION_PROMPT
 from .config import (
     BLUESKY_PROFILE_URL,
+    CYCLE_DAILY_AT_UTC_PARSED,
     CYCLE_INTERVAL_SECONDS,
     CSRF_SECRET,
     DATA_DIR,
@@ -411,9 +412,16 @@ async def home(request: Request):
     if INSTAGRAM_PROFILE_URL.strip():
         social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
 
-    # Next run: last activity + cycle interval (for ticker countdown)
+    # Next run: last activity + cycle interval, or next daily-at UTC (for ticker countdown)
     last_ms = state.get("_lastModifiedMs") or 0
-    next_run_at_ms = last_ms + CYCLE_INTERVAL_SECONDS * 1000 if last_ms else 0
+    if CYCLE_DAILY_AT_UTC_PARSED:
+        hour, minute = CYCLE_DAILY_AT_UTC_PARSED
+        now = datetime.now(timezone.utc)
+        today_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        next_run = today_at if now < today_at else today_at + timedelta(days=1)
+        next_run_at_ms = int(next_run.timestamp() * 1000)
+    else:
+        next_run_at_ms = last_ms + CYCLE_INTERVAL_SECONDS * 1000 if last_ms else 0
 
     return templates.TemplateResponse("home.html", {
         "request": request,

@@ -1,3 +1,4 @@
+import re
 import os
 from pathlib import Path
 
@@ -7,6 +8,22 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
+
+
+def _parse_daily_at_utc(value: str) -> tuple[int, int] | None:
+    """Parse HH:MM or H:MM (UTC). Returns (hour, minute) or None if invalid."""
+    if not value or not (s := value.strip()):
+        return None
+    m = re.match(r"^(?P<h>\d{1,2}):(?P<m>\d{2})$", s)
+    if not m:
+        return None
+    try:
+        h, m_val = int(m.group("h")), int(m.group("m"))
+        if 0 <= h <= 23 and 0 <= m_val <= 59:
+            return (h, m_val)
+    except ValueError:
+        pass
+    return None
 
 # API: OpenRouter (primary — used with Claude) or direct OpenAI. Same OpenAI-compatible client.
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
@@ -28,6 +45,10 @@ SITE_URL: str = os.getenv("SITE_URL", "https://meaning-seeker.com")
 SITE_NAME: str = os.getenv("SITE_NAME", "Meaning Seeker")
 
 CYCLE_INTERVAL_SECONDS: int = int(os.getenv("CYCLE_INTERVAL_SECONDS", "3600"))
+_cycle_daily_raw: str = os.getenv("CYCLE_DAILY_AT_UTC", "").strip()
+CYCLE_DAILY_AT_UTC_PARSED: tuple[int, int] | None = (
+    _parse_daily_at_utc(_cycle_daily_raw) if _cycle_daily_raw else None
+)
 
 # API call: timeout (seconds) and retries for transient failures
 API_TIMEOUT_SECONDS: int = int(os.getenv("API_TIMEOUT_SECONDS", "180"))

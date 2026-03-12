@@ -54,6 +54,29 @@ def _build_silence_context(state) -> str | None:
     )
 
 
+def _cycles_since_last_image() -> int:
+    """Return how many cycles have passed since the last cycle that generated an image.
+    Returns a large sentinel (999) if no image has ever been generated.
+    """
+    cycles_dir = DATA_DIR / "archive" / "cycles"
+    if not cycles_dir.exists():
+        return 999
+    files = sorted(cycles_dir.glob("*.json"), key=lambda p: int(p.stem), reverse=True)
+    for path in files:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if (data.get("image_decision") or {}).get("create"):
+                last_image_cycle = int(path.stem)
+                # current cycle hasn't been saved yet; state.cycle is the last completed
+                # We read cycle numbers from filenames; the current cycle = max + 1
+                all_cycles = [int(p.stem) for p in files]
+                current_cycle = max(all_cycles) + 1
+                return current_cycle - last_image_cycle
+        except (json.JSONDecodeError, OSError, ValueError, TypeError):
+            continue
+    return 999
+
+
 def _load_last_n_cycle_metadata(n: int) -> tuple[list[int], list[bool], list[bool]]:
     """Load repetition scores, had_commitment_updates, had_new_tensions for last n cycles."""
     cycles_dir = DATA_DIR / "archive" / "cycles"
@@ -123,14 +146,26 @@ def run_cycle() -> bool:
     tensions = memory.load_tensions()
     commitments = memory.load_commitments()
 
-    pattern_interruption = monitor.get_pending_interruption()
-    injection = resistance.select_injection(cycle, tensions, commitments, pattern_interruption)
-    if injection.source == "pattern_interruption":
-        monitor.clear_pending_interruption()
+    # Sunday weekly review or normal injection
+    is_sunday = datetime.now(timezone.utc).weekday() == 6
+    use_weekly_review = False
+    if CYCLE_DAILY_AT_UTC_PARSED and is_sunday:
+        use_weekly_review = True
+    elif not CYCLE_DAILY_AT_UTC_PARSED and cycle % 7 == 0:
+        use_weekly_review = True
+
+    if use_weekly_review:
+        injection = resistance.build_weekly_review_injection(cycle, state)
+    else:
+        pattern_interruption = monitor.get_pending_interruption()
+        injection = resistance.select_injection(cycle, tensions, commitments, pattern_interruption)
+        if injection.source == "pattern_interruption":
+            monitor.clear_pending_interruption()
 
     threatened, usage_threat = monitor.map_threats(injection.text, commitments)
     snippets = retrieval.retrieve_similar(tensions, injection.text, current_cycle=cycle)
     silence_context = _build_silence_context(state)
+    cycles_since_image = _cycles_since_last_image()
 
     try:
         output, system_prompt, user_message, raw_response, prompt_hash, usage_inquiry = engine.run(
@@ -144,6 +179,7 @@ def run_cycle() -> bool:
             threatened_commitments=threatened,
             injection=injection,
             silence_context=silence_context,
+            cycles_since_last_image=cycles_since_image,
         )
     except engine.EngineFailure as e:
         logger.error("Cycle %s: engine failed (%s): %s", cycle, e.reason, e.message)
@@ -258,10 +294,24 @@ def run_cycle() -> bool:
         except Exception as _e:
             logger.warning("Phase C: image generation error (non-fatal): %s", _e)
 
+    journal_mode = "weekly_review" if injection.source == "weekly_review" else output.mode
+    woven_challenge = injection.woven_challenge if injection.woven_challenge else None
+    review_challenges = None
+    if injection.source == "weekly_review" and (
+        (injection.challenges_addressed and len(injection.challenges_addressed) > 0)
+        or (injection.challenges_mentioned and len(injection.challenges_mentioned) > 0)
+    ):
+        hc_map = {c["id"]: c for c in resistance.load_human_challenges()}
+        ids = (injection.challenges_addressed or []) + (injection.challenges_mentioned or [])
+        review_challenges = [
+            {"text": (hc_map.get(i) or {}).get("text", ""), "cycle": (hc_map.get(i) or {}).get("linked_cycle")}
+            for i in ids
+        ]
+
     journal_text = journal.render_journal_entry(
         cycle=cycle,
         timestamp=timestamp,
-        mode=output.mode,
+        mode=journal_mode,
         thinking=output.thinking,
         tensions_new=output.tensions_new,
         tensions_resolved=output.tensions_resolved,
@@ -270,8 +320,30 @@ def run_cycle() -> bool:
         title=output.title,
         summary=output.summary,
         image_path=image_path,
+        woven_challenge=woven_challenge,
+        review_challenges=review_challenges,
     )
     memory.save_journal_entry(cycle, journal_text)
+
+    # Challenge System v2: post-cycle status updates
+    if injection.woven_challenge and injection.woven_challenge.get("submission_id"):
+        resistance.update_challenge_status(
+            injection.woven_challenge["submission_id"],
+            "woven",
+            linked_cycle=cycle,
+            linked_journal=str(cycle),
+        )
+    if injection.source == "weekly_review":
+        for cid in (injection.challenges_addressed or []) + (injection.challenges_mentioned or []):
+            resistance.update_challenge_status(
+                cid,
+                "reviewed",
+                linked_cycle=cycle,
+                linked_journal=str(cycle),
+            )
+        resistance.run_weekly_review_lapse(state)
+        state.last_review_at = timestamp
+        memory.save_state(state)
 
     ledger.save_prompt_record(cycle, system_prompt, user_message, raw_response, prompt_hash)
 
@@ -279,7 +351,7 @@ def run_cycle() -> bool:
         "cycle": cycle,
         "timestamp": timestamp,
         "title": output.title,
-        "mode": output.mode,
+        "mode": journal_mode,
         "injection": injection.model_dump(),
         "thinking": output.thinking,
         "tensions_new": [t.model_dump() for t in output.tensions_new],

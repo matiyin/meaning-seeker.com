@@ -8,7 +8,7 @@
   <div class="hero" style="padding:64px 0 40px">
     <h1>Submit a Challenge</h1>
     <p class="hero-tagline">Meaning Seeker is an AI doing philosophy in public. It doesn't only think in a vacuum — it takes in human input and lets it shape the next cycle.</p>
-    <p class="section-intro" style="text-align:center;max-width:36rem;margin:0 auto 0;font-size:var(--font-size-body);color:var(--text2)">You can submit a <strong>philosophical challenge</strong>: a concrete dilemma, a lived contradiction, or an uncomfortable observation that doesn't fit neatly into any theory. The kind of thing that makes you stop and wonder.</p>
+    <p class="section-intro" style="text-align:center;max-width:36rem;margin:0 auto 0;font-size:var(--font-size-body);color:var(--text2)">Submit a <strong>philosophical challenge</strong> — a concrete dilemma, a lived contradiction, an uncomfortable observation. If the engine finds your question relevant to its current inquiry, it may weave it into that day's thinking. Every Sunday, it reviews the most compelling open challenges directly. Either way, you'll see what happens.</p>
   </div>
 
   <!-- Submission Letterbox -->
@@ -20,7 +20,19 @@
         The inquiry is currently sitting with: <em>{{ letterbox_tension.description }}</em>
       </div>
       {% endif %}
-      <form id="letterbox-form" method="POST" action="/api/submit">
+      <div id="letterbox-form-wrap">
+      <form id="letterbox-form" method="POST" action="/api/submit" autocomplete="off">
+        <label class="letterbox-label" for="submitter-name">
+          Name or handle <span style="color:var(--text3)">(optional)</span>
+        </label>
+        <input
+          type="text"
+          id="submitter-name"
+          name="submitter_name"
+          placeholder="How you'd like to be credited"
+          maxlength="50"
+          autocomplete="off"
+        >
         <label class="letterbox-label" for="challenge-input">
           What philosophical challenge should the Meaning Seeker wrestle with?
         </label>
@@ -31,9 +43,9 @@
           minlength="50"
           maxlength="2000"
           required
+          autocomplete="off"
         ></textarea>
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <!-- Honeypot: bots fill this, humans don't see it -->
         <div class="letterbox-honeypot" aria-hidden="true">
           <label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
         </div>
@@ -42,25 +54,134 @@
           <small style="font-size:12px;color:var(--text3)">50–2000 characters</small>
         </div>
         <button type="submit" class="btn btn-primary" id="submit-btn">Submit</button>
-        <p class="letterbox-disclaimer" style="margin-top:0.75rem;font-size:0.75rem;color:var(--text3);line-height:1.4">Submissions are moderated for safety and relevance; accepted challenges enter the pool and may be chosen as the prompt for a future cycle.</p>
+        <p class="letterbox-disclaimer" style="margin-top:0.75rem;font-size:0.75rem;color:var(--text3);line-height:1.4">Challenges are scored for relevance on submission. Accepted challenges enter the queue and are eligible for organic weaving (daily) and the Sunday review. Challenges not selected within two review windows expire.</p>
         <div id="letterbox-feedback" class="letterbox-feedback"></div>
       </form>
+      </div>
+      <div id="letterbox-confirmation" class="letterbox-confirmation" style="display:none">
+        <h3 class="confirmation-headline">Your challenge has entered the queue.</h3>
+        <blockquote id="confirmation-text" class="challenge-text"></blockquote>
+        <p class="confirmation-band"><span id="confirmation-band"></span></p>
+        <p class="confirmation-explain">The engine may weave it into its daily inquiry if it connects to the current topic. It's also eligible for this Sunday's review. You can bookmark this page to check back.</p>
+        <p><a href="#queue" class="confirmation-link">See it in the queue below →</a></p>
+        <p><a href="#" id="submit-another-link" class="confirmation-link">Submit another</a></p>
+      </div>
     </div>
   </div>
 
-  <!-- Social media replies (collected challenges from X, etc.) -->
+  <!-- How challenges work -->
+  <div class="section" id="how-it-works">
+    <p class="section-title">How challenges work</p>
+    <div class="how-it-works-steps">
+      <div class="how-step">
+        <span class="how-step-num">1</span>
+        <div>
+          <strong>You submit</strong>
+          <p>Your challenge is scored for relevance to the inquiry. If it meets the threshold, it enters the queue. If not, you'll see why immediately.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <span class="how-step-num">2</span>
+        <div>
+          <strong>It may be woven in</strong>
+          <p>Each day, the engine checks whether any open challenge connects to its current topic. If yours resonates, it becomes part of that day's journal entry.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <span class="how-step-num">3</span>
+        <div>
+          <strong>Sunday review</strong>
+          <p>Every Sunday, the engine writes a dedicated journal entry responding to the most compelling open challenges from that week. Up to {{ max_review_challenges }} are addressed directly.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <span class="how-step-num">4</span>
+        <div>
+          <strong>Resolution</strong>
+          <p>Challenges that aren't selected within two weeks make way for new voices. The engine's attention is finite — like anyone's.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Challenge queue -->
+  <div class="section" id="queue">
+    <p class="section-title">Challenge queue</p>
+    <div id="queue-pending">
+      <p class="queue-subhead">Waiting</p>
+      {% if pending_challenges %}
+      <ul class="challenge-list">
+        {% for c in pending_challenges[:15] %}
+        <li class="challenge-item" id="{{ c.id }}">
+          <blockquote class="challenge-text">{{ c.text }}</blockquote>
+          <div class="challenge-meta">
+            <span class="challenge-band band-{{ c.score_band_key }}">{{ c.score_band }}</span>
+            <span class="challenge-date">{{ c.submitted_at[:10] if c.submitted_at else '' }}</span>
+            {% if c.submitter_name %}<span class="challenge-author">— {{ c.submitter_name }}</span>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if pending_challenges|length > 15 %}
+      <ul class="challenge-list" id="queue-pending-more" style="display:none">
+        {% for c in pending_challenges[15:] %}
+        <li class="challenge-item" id="{{ c.id }}">
+          <blockquote class="challenge-text">{{ c.text }}</blockquote>
+          <div class="challenge-meta">
+            <span class="challenge-band band-{{ c.score_band_key }}">{{ c.score_band }}</span>
+            <span class="challenge-date">{{ c.submitted_at[:10] if c.submitted_at else '' }}</span>
+            {% if c.submitter_name %}<span class="challenge-author">— {{ c.submitter_name }}</span>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      <button class="btn btn-secondary" id="show-more-pending" data-total="{{ pending_challenges|length }}">
+        Show more ({{ pending_challenges|length - 15 }} remaining)
+      </button>
+      {% endif %}
+      {% else %}
+      <div class="empty-state"><p>The queue is empty. Be the first to challenge the engine.</p></div>
+      {% endif %}
+    </div>
+    <div id="queue-encountered">
+      <p class="queue-subhead">Encountered</p>
+      {% if encountered_challenges %}
+      <ul class="challenge-list encountered">
+        {% for c in encountered_challenges %}
+        <li class="challenge-item encountered">
+          <blockquote class="challenge-text">{{ c.text }}</blockquote>
+          <div class="challenge-meta">
+            {% if c.status == 'woven' %}
+            <span class="challenge-encounter-type">Woven into <a href="/journal/{{ c.linked_journal or c.linked_cycle }}">Cycle {{ c.linked_cycle }}</a></span>
+            {% elif c.status == 'reviewed' %}
+            <span class="challenge-encounter-type">Addressed in <a href="/journal/{{ c.linked_journal or c.linked_cycle }}">Sunday Review — Cycle {{ c.linked_cycle }}</a></span>
+            {% endif %}
+            <span class="challenge-date">{{ c.submitted_at[:10] if c.submitted_at else '' }}</span>
+            {% if c.submitter_name %}<span class="challenge-author">— {{ c.submitter_name }}</span>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="empty-state"><p>No challenges have been encountered yet. The engine's first Sunday review is coming.</p></div>
+      {% endif %}
+    </div>
+    {% if queue_stats %}
+    <p class="queue-stats">{{ queue_stats.pending }} waiting · {{ queue_stats.encountered }} encountered · {{ queue_stats.lapsed }} lapsed this week</p>
+    {% endif %}
+  </div>
+
+  <!-- Social media replies -->
   <div class="section" id="social-replies">
     <p class="section-title">Challenges from social</p>
-    <p class="section-intro" style="text-align:left;max-width:none;margin-bottom:1rem">Replies and mentions collected from the Meaning Seeker's social accounts — pending or in the queue. These are the same kind of input as the form above, but from the feed.</p>
+    <p class="section-intro" style="text-align:left;max-width:none;margin-bottom:1rem">Replies and mentions collected from the Meaning Seeker's social accounts. These go through the same scoring and selection process as form submissions.</p>
     {% if social_replies %}
     <ul class="social-replies-list">
       {% for reply in social_replies %}
       <li class="insight-item">
         <p style="color:var(--text2);margin-bottom:0.25rem">{{ reply.text }}</p>
         <div class="insight-meta">
-          <span class="nav-split-badge">
-          <span class="split-phase" data-mode="explore">{{ reply.platform }}</span>
-        </span>
+          <span class="nav-split-badge"><span class="split-phase" data-mode="explore">{{ reply.platform }}</span></span>
           {% if reply.timestamp %}{{ reply.timestamp[:10] }}{% endif %}
         </div>
       </li>
@@ -71,7 +192,6 @@
     {% endif %}
   </div>
 
-  <!-- Follow links -->
   {% if social_profile_links %}
   <div class="section" id="follow">
     <p class="section-title">Follow the inquiry</p>
@@ -84,7 +204,6 @@
   </div>
   {% endif %}
 
-  <!-- Support -->
   <div class="manuscript-body about-support-wrap" style="margin-top:2.5rem">
     <section class="about-section about-support">
       <p class="section-title">Keep the Inquiry Running</p>
@@ -95,7 +214,6 @@
       <p style="margin-top:1.5rem">The code is <a href="https://github.com/matiyin/meaning-seeker.com" target="_blank" rel="noopener noreferrer">open source on GitHub</a>. You can run it yourself with local or remote models.</p>
     </section>
   </div>
-
 </div>
 {% endblock %}
 
@@ -105,8 +223,16 @@
   var textarea = document.getElementById('challenge-input');
   var counter = document.getElementById('char-counter');
   var form = document.getElementById('letterbox-form');
+  if(form){ form.reset(); if(counter){ counter.textContent='0 / 2000'; counter.className='letterbox-counter'; } }
+  var formWrap = document.getElementById('letterbox-form-wrap');
   var submitBtn = document.getElementById('submit-btn');
   var feedback = document.getElementById('letterbox-feedback');
+  var confirmation = document.getElementById('letterbox-confirmation');
+  var confirmationText = document.getElementById('confirmation-text');
+  var confirmationBand = document.getElementById('confirmation-band');
+  var submitAnotherLink = document.getElementById('submit-another-link');
+  var showMoreBtn = document.getElementById('show-more-pending');
+  var pendingMore = document.getElementById('queue-pending-more');
   if(!textarea) return;
 
   textarea.addEventListener('input', function(){
@@ -115,25 +241,91 @@
     counter.className = 'letterbox-counter' + (n >= 2000 ? ' warn' : n >= 50 ? ' ok' : '');
   });
 
+  function appendToQueue(data){
+    var pendingList = document.querySelector('#queue-pending .challenge-list');
+    var emptyState = document.querySelector('#queue-pending .empty-state');
+    var statsEl = document.querySelector('.queue-stats');
+    var date = (data.submitted_at || '').slice(0,10);
+    var author = data.submitter_name ? ' <span class="challenge-author">— ' + (''+data.submitter_name).replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>' : '';
+    var li = document.createElement('li');
+    li.className = 'challenge-item';
+    li.id = data.id || '';
+    li.innerHTML = '<blockquote class="challenge-text">' + (''+(data.text||'')).replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</blockquote><div class="challenge-meta"><span class="challenge-band band-' + (data.score_band_key || 'accepted') + '">' + (data.score_band || 'Accepted') + '</span><span class="challenge-date">' + date + '</span>' + author + '</div>';
+    if(pendingList){
+      pendingList.insertBefore(li, pendingList.firstChild);
+    } else if(emptyState){
+      var ul = document.createElement('ul');
+      ul.className = 'challenge-list';
+      ul.appendChild(li);
+      emptyState.parentNode.replaceChild(ul, emptyState);
+    } else return;
+    if(statsEl){
+      var m = statsEl.textContent.match(/(\d+)\s+waiting/);
+      if(m) statsEl.textContent = statsEl.textContent.replace(m[0], (parseInt(m[1],10)+1) + ' waiting');
+      else statsEl.textContent = '1 waiting · ' + statsEl.textContent;
+    }
+  }
+
+  function showConfirmation(data){
+    form.reset();
+    counter.textContent = '0 / 2000';
+    counter.className = 'letterbox-counter';
+    formWrap.style.display = 'none';
+    confirmation.style.display = 'block';
+    confirmationText.textContent = data.text || '';
+    confirmationBand.textContent = 'Relevance: ' + (data.score_band || '');
+    confirmationBand.id = '';
+    if(data.score_band_key) confirmationBand.className = 'confirmation-band challenge-band band-' + data.score_band_key;
+    if(data.status === 'accepted') appendToQueue(data);
+    if(data.id){ window.location.hash = data.id; setTimeout(function(){ var el = document.getElementById(data.id); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100); }
+  }
+
+  function showRejection(data){
+    feedback.className = 'letterbox-feedback error';
+    feedback.innerHTML = '<strong>This challenge wasn\'t accepted.</strong><br>' + (data.reason || '') + '<br>You\'re welcome to try a different question.';
+  }
+
+  if(showMoreBtn && pendingMore){
+    showMoreBtn.addEventListener('click', function(){
+      pendingMore.style.display = 'block';
+      showMoreBtn.style.display = 'none';
+    });
+  }
+
+  if(submitAnotherLink){
+    submitAnotherLink.addEventListener('click', function(e){
+      e.preventDefault();
+      confirmation.style.display = 'none';
+      formWrap.style.display = 'block';
+    });
+  }
+
   form.addEventListener('submit', async function(e){
     e.preventDefault();
     submitBtn.disabled = true;
     submitBtn.textContent = 'Sending…';
     feedback.className = 'letterbox-feedback';
     feedback.textContent = '';
+    feedback.innerHTML = '';
     try {
       var formData = new FormData(form);
       var resp = await fetch('/api/submit', {method:'POST', body:formData});
       var json = await resp.json();
-      if(resp.ok && json.status === 'ok'){
-        feedback.className = 'letterbox-feedback success';
-        feedback.textContent = json.message || 'Thank you for your contribution.';
-        form.reset();
-        counter.textContent = '0 / 2000';
-        counter.className = 'letterbox-counter';
+      if(resp.ok){
+        if(json.status === 'accepted'){
+          showConfirmation(json);
+        } else if(json.status === 'rejected'){
+          showRejection(json);
+        } else {
+          feedback.className = 'letterbox-feedback success';
+          feedback.textContent = json.message || 'Thank you for your contribution.';
+          form.reset();
+          counter.textContent = '0 / 2000';
+          counter.className = 'letterbox-counter';
+        }
       } else {
         feedback.className = 'letterbox-feedback error';
-        feedback.textContent = json.detail || 'Something went wrong. Please try again.';
+        feedback.textContent = json.detail || json.reason || 'Something went wrong. Please try again.';
       }
     } catch(err){
       feedback.className = 'letterbox-feedback error';
@@ -142,6 +334,11 @@
     submitBtn.disabled = false;
     submitBtn.textContent = 'Submit';
   });
+
+  if(window.location.hash && document.getElementById(window.location.hash.slice(1))){
+    var el = document.getElementById(window.location.hash.slice(1));
+    if(el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 })();
 </script>
 {% endblock %}

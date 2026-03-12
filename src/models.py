@@ -53,6 +53,8 @@ class StateFile(BaseModel):
     last_failure: Optional[dict] = None  # { timestamp, reason, attempted_cycle, message }
     # Phase B: full monitoring feedback for next cycle's context
     last_monitoring: Optional["MonitoringResult"] = None
+    # Challenge System v2: ISO datetime of last Sunday weekly review; used by lapse logic
+    last_review_at: Optional[str] = None
 
 
 # ── Phase B: Resistance, monitoring, retrieval ──────────────────────────────────
@@ -70,10 +72,13 @@ class MonitoringResult(BaseModel):
 
 
 class InjectionRecord(BaseModel):
-    source: str  # human_challenge | counterposition | creative_constraint | pattern_interruption
+    source: str  # human_challenge | counterposition | creative_constraint | pattern_interruption | weekly_review | none
     text: str
     original_weight: float = 0.0
     effective_weight: float = 0.0
+    woven_challenge: Optional[dict] = None  # {submission_id, text, relevance_score, submitter_name}
+    challenges_addressed: Optional[list[str]] = None  # weekly_review: submission ids with full response
+    challenges_mentioned: Optional[list[str]] = None  # weekly_review: submission ids "already encountered"
 
 
 class ThreatMapEntry(BaseModel):

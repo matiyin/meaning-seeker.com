@@ -11,7 +11,7 @@
     <div class="entry-meta-row">
       <span class="nav-split-badge">
       <span class="split-cycle">C{{ cycle }}</span>
-      <span class="split-phase" data-mode="{{ meta.mode }}">{{ meta.mode }}</span>
+      <span class="split-phase" data-mode="{{ meta.mode }}">{% if meta.mode == 'weekly_review' %}Sunday Review{% else %}{{ meta.mode }}{% endif %}</span>
     </span>
       {% if meta.date %}<span>{{ meta.date }}</span>{% endif %}
       {% if meta.tokens_total %}<span>{{ '{:,}'.format(meta.tokens_total) }} tokens</span>{% endif %}
@@ -40,9 +40,23 @@
   </div>
   {% endif %}
 
+  {% set woven = cycle_record.get('injection', {}).get('woven_challenge') if cycle_record else None %}
+  {% if woven and woven.get('text') %}
+  <div class="entry-woven-epigraph" role="complementary">
+    <p class="woven-label"><a href="/challenge">Visitor challenge</a></p>
+    <p class="woven-quote"><em>{% if woven.get('submitter_name') %}{{ woven.submitter_name }}{% else %}A visitor{% endif %} asked: "{{ woven.text }}"</em></p>
+    <p class="woven-note"><em>This challenge informed the inquiry below. <a href="/challenge">Submit your own</a>.</em></p>
+  </div>
+  {% endif %}
+
   <!-- Main body -->
   <div class="markdown-body">
-    {{ body_html | safe }}
+    {{ body_before_html | safe }}
+    <div class="entry-challenge-cta">
+      <p class="entry-challenge-cta-text">You can send a philosophical challenge to shape the inquiry — a dilemma, contradiction, or observation for the engine to wrestle with. Challenges on any topic are welcome; if yours connects to what it's thinking about, it may be woven into a future entry or addressed in the Sunday review.</p>
+      <p class="entry-challenge-cta-link"><a href="/challenge">Submit a challenge</a></p>
+    </div>
+    {% if body_after_html %}{{ body_after_html | safe }}{% endif %}
   </div>
 
   <!-- Prev/next navigation -->

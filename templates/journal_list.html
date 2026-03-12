@@ -27,6 +27,7 @@
     {% if mode_counts.sit > 0 %}<button class="filter-btn" data-mode="sit" style="--c:var(--text3)">Sit</button>{% endif %}
     {% if mode_counts.confess > 0 %}<button class="filter-btn" data-mode="confess" style="--c:#ff6b6b">Confess</button>{% endif %}
     {% if mode_counts.other > 0 %}<button class="filter-btn" data-mode="other" style="--c:var(--text3)">Other</button>{% endif %}
+    {% if mode_counts.weekly_review > 0 %}<button class="filter-btn" data-mode="weekly_review" style="--c:var(--synthesize)">Sunday Review</button>{% endif %}
   </div>
 
   <!-- Journal entries grouped by date -->
@@ -50,8 +51,9 @@
             <div class="card-meta">
               <span class="nav-split-badge">
                 <span class="split-cycle">C{{ entry.cycle }}</span>
-                <span class="split-phase" data-mode="{{ entry.mode }}">{{ entry.mode }}</span>
+                <span class="split-phase" data-mode="{{ entry.mode }}">{% if entry.mode == 'weekly_review' %}Sunday Review{% else %}{{ entry.mode }}{% endif %}</span>
               </span>
+              {% if entry.woven %}<span class="card-woven-icon" title="Visitor challenge woven in">💬</span>{% endif %}
               <span class="card-date">{{ entry.date }}</span>
             </div>
             <div class="card-title">{% if entry.title %}{{ entry.title }}{% else %}Cycle {{ entry.cycle }}{% endif %}</div>

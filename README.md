@@ -148,6 +148,8 @@ Only `OPENROUTER_API_KEY` (or `OPENAI_API_KEY`) is required. Everything else has
 | **WEB_PORT** | Web server port | `3000` |
 | **IMAGE_MODEL** | OpenRouter FLUX model for image generation | `black-forest-labs/flux.2-klein-4b` |
 | **OLLAMA_BASE_URL** | Ollama base URL for archive retrieval | `http://localhost:11434` |
+| **OLLAMA_EMBED_MODEL** | Ollama embedding model for archive retrieval | `nomic-embed-text` |
+
 
 Social media and filtering keys are documented in `.env.example`.
 

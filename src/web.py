@@ -37,11 +37,13 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
+from . import resistance
 from .art_direction import ART_DIRECTION_PROMPT
 from .config import (
     BLUESKY_PROFILE_URL,
     CYCLE_DAILY_AT_UTC_PARSED,
     CYCLE_INTERVAL_SECONDS,
+    MAX_REVIEW_CHALLENGES,
     CSRF_SECRET,
     DATA_DIR,
     IMAGE_MODEL,
@@ -217,22 +219,24 @@ def _parse_journal_header(content: str) -> dict:
     mode = "other"
     tokens_total = 0
     summary_line: str | None = None
+    woven = False
 
     for i, line in enumerate(lines):
         stripped = line.strip()
         if not title and stripped.startswith("# "):
             title = stripped[2:].strip()
         elif stripped.startswith("**Cycle ") and "**Date:**" in stripped:
-            # **Cycle 41** · **Date:** 2026-03-04  **Mode:** sit
             cm = re.search(r"\*\*Cycle\s+(\d+)\*\*", stripped)
             if cm:
                 cycle = int(cm.group(1))
             dm = re.search(r"\*\*Date:\*\*\s*([\d-]+)", stripped)
             if dm:
                 date_str = dm.group(1)
-            mm = re.search(r"\*\*Mode:\*\*\s*(\w+)", stripped)
+            mm = re.search(r"\*\*Mode:\*\*\s*([\w-]+)", stripped)
             if mm:
                 mode = mm.group(1).lower()
+            if "**Woven:**" in stripped and re.search(r"\*\*Woven:\*\*\s+sub-[\w-]+", stripped):
+                woven = True
         elif stripped.startswith("**Tokens:**"):
             tm = re.search(r"\*\*total\*\*\s+([\d,]+)", stripped)
             if tm:
@@ -271,6 +275,7 @@ def _parse_journal_header(content: str) -> dict:
         "thumbnail_url": thumbnail_url,
         "tokens_total": tokens_total,
         "body_md": body,
+        "woven": woven,
     }
 
 
@@ -314,6 +319,57 @@ def _load_recent_cycle_records(n: int = 20) -> list[dict]:
         except (json.JSONDecodeError, OSError):
             continue
     return records
+
+
+def _score_to_band(score: int | None) -> tuple[str, str]:
+    """Map numeric score to (band, band_key)."""
+    if score is None:
+        return "Accepted", "accepted"
+    if score >= 9:
+        return "Highly relevant", "high"
+    if score >= 7:
+        return "Relevant", "relevant"
+    if score >= 5:
+        return "Accepted", "accepted"
+    return "Low relevance", "low"
+
+
+def _load_challenge_queue_context(state: dict) -> dict:
+    """Build pending_challenges, encountered_challenges, queue_stats for challenge page."""
+    challenges = resistance.load_human_challenges()
+    last_review = state.get("last_review_at") or ""
+
+    pending = sorted(
+        [c for c in challenges if c.get("status") == "pending"],
+        key=lambda c: c.get("submitted_at") or "",
+        reverse=True,
+    )
+    for c in pending:
+        score = c.get("score")
+        c["score_band"], c["score_band_key"] = _score_to_band(score)
+
+    encountered = sorted(
+        [c for c in challenges if c.get("status") in ("woven", "reviewed")],
+        key=lambda c: c.get("resolved_at") or c.get("submitted_at") or "",
+        reverse=True,
+    )[:50]
+
+    lapsed = sum(
+        1 for c in challenges
+        if c.get("status") == "lapsed"
+        and (c.get("resolved_at") or "") >= last_review
+    ) if last_review else 0
+
+    return {
+        "pending_challenges": pending,
+        "encountered_challenges": encountered,
+        "queue_stats": {
+            "pending": len(pending),
+            "encountered": len([c for c in challenges if c.get("status") in ("woven", "reviewed")]),
+            "lapsed": lapsed,
+        },
+        "max_review_challenges": MAX_REVIEW_CHALLENGES,
+    }
 
 
 def _load_social_replies() -> list[dict]:
@@ -445,8 +501,8 @@ async def home(request: Request):
 
 
 def _journal_mode_counts(journals: list) -> dict[str, int]:
-    """Count journal entries per mode for filter bar. Keys: all, explore, synthesize, critique, evolve, sit, confess, other."""
-    known = {"explore", "synthesize", "critique", "evolve", "sit", "confess"}
+    """Count journal entries per mode for filter bar. Keys: all, explore, synthesize, critique, evolve, sit, confess, weekly_review, other."""
+    known = {"explore", "synthesize", "critique", "evolve", "sit", "confess", "weekly_review"}
     counts: dict[str, int] = {
         "all": len(journals),
         "explore": 0,
@@ -455,6 +511,7 @@ def _journal_mode_counts(journals: list) -> dict[str, int]:
         "evolve": 0,
         "sit": 0,
         "confess": 0,
+        "weekly_review": 0,
         "other": 0,
     }
     for j in journals:
@@ -503,7 +560,19 @@ async def journal_entry(request: Request, cycle: int):
     body_md = meta["body_md"]
     if meta.get("thumbnail_url"):
         body_md = re.sub(r"\n*!\[[^\]]*\]\([^)]+\)\n*", "\n\n", body_md, count=1).strip()
-    body_html = _render_md(body_md)
+    # Split before tensions section for CTA placement
+    tensions_match = re.search(
+        r"\n---\s*\n+\s*### (?:New tensions carried forward|Tensions resolved this cycle|Transition)\b",
+        body_md,
+    )
+    if tensions_match:
+        body_before_md = body_md[: tensions_match.start()].strip()
+        body_after_md = body_md[tensions_match.start() :].lstrip()
+        body_before_html = _render_md(body_before_md)
+        body_after_html = _render_md(body_after_md)
+    else:
+        body_before_html = _render_md(body_md)
+        body_after_html = None
 
     # Load cycle record for social output, injection info
     cycle_record = _load_cycle_record(cycle)
@@ -547,7 +616,8 @@ async def journal_entry(request: Request, cycle: int):
         "request": request,
         "active_nav": "journal",
         "meta": meta,
-        "body_html": body_html,
+        "body_before_html": body_before_html,
+        "body_after_html": body_after_html,
         "cycle": cycle,
         "cycle_record": cycle_record,
         "prev_meta": prev_meta,
@@ -717,6 +787,7 @@ async def challenge_page(request: Request):
         social_profile_links.append({"name": "Threads", "url": THREADS_PROFILE_URL.strip()})
     if INSTAGRAM_PROFILE_URL.strip():
         social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
+    queue_ctx = _load_challenge_queue_context(state)
     return templates.TemplateResponse("challenge.html", {
         "request": request,
         "active_nav": "challenge",
@@ -726,6 +797,7 @@ async def challenge_page(request: Request):
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
         "csrf_token": _generate_csrf_token(),
+        **queue_ctx,
     })
 
 
@@ -795,18 +867,19 @@ async def api_cycles():
 async def submit_challenge(
     request: Request,
     challenge: str = Form(...),
+    submitter_name: str = Form(""),
     website: str = Form(""),  # honeypot
     csrf_token: str = Form(""),
 ):
-    # CSRF check — reject if token missing or invalid
+    # CSRF check
     if not _verify_csrf_token(csrf_token):
         raise HTTPException(403, detail="Invalid or expired form. Please refresh the page and try again.")
 
-    # Honeypot check — bots fill this hidden field
+    # Honeypot check
     if website.strip():
         return JSONResponse({"status": "ok", "message": "Thank you for your contribution."})
 
-    # Blocklist check — reject banned IPs before any other processing
+    # Blocklist check
     ip = get_remote_address(request) or "unknown"
     ip_hash = hashlib.sha256(ip.encode()).hexdigest()
     if ip_hash in _load_blocked_hashes():
@@ -821,41 +894,23 @@ async def submit_challenge(
     if len(text) > SUBMISSION_MAX_LENGTH:
         raise HTTPException(400, f"Submission must be at most {SUBMISSION_MAX_LENGTH} characters.")
 
-    submission = {
-        "submission_id": f"sub-{int(time.time() * 1000)}",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "text": text,
-        "ip_hash": ip_hash,
-        "source": "website",
-        "filter_scores": None,
-        "status": "pending",
-        "rejection_reason": None,
-    }
-
-    # Hygiene check at submit time: toxicity and prompt injection → block IP and reject
+    submission_id = f"sub-{int(time.time() * 1000)}"
     from . import filtering
-    hygiene = filtering._hygiene_check(submission)
-    if not hygiene["pass"]:
-        reason = hygiene.get("reason", "")
-        if reason in ("toxicity", "prompt_injection"):
-            _add_blocked_hash(ip_hash)
-            raise HTTPException(
-                403,
-                detail="Your submission was rejected for violating our community guidelines (harmful or abusive content). Your access to this form has been restricted.",
-            )
-        if reason == "duplicate":
-            raise HTTPException(400, detail="You have already submitted this or a very similar challenge.")
-        if reason == "invalid_encoding":
-            raise HTTPException(400, detail="Submission contained invalid characters. Please use plain text.")
-        raise HTTPException(400, detail="Submission did not meet our guidelines. Please try again.")
+    result = filtering.process_single_submission(
+        text=text,
+        submitter_name=submitter_name.strip()[:50] if submitter_name else "",
+        submission_id=submission_id,
+    )
 
-    quarantine_dir = DATA_DIR / "injections" / "quarantine"
-    quarantine_dir.mkdir(parents=True, exist_ok=True)
-    path = quarantine_dir / f"{submission['submission_id']}.json"
-    path.write_text(json.dumps(submission, indent=2, ensure_ascii=False), encoding="utf-8")
+    if result.get("block_ip"):
+        _add_blocked_hash(ip_hash)
+        raise HTTPException(
+            403,
+            detail="Your submission was rejected for violating our community guidelines (harmful or abusive content). Your access to this form has been restricted.",
+        )
 
-    logger.info("Submission received: %s", submission["submission_id"])
-    return JSONResponse({"status": "ok", "message": "Thank you for your contribution."})
+    logger.info("Submission %s: %s", submission_id, result.get("status", "?"))
+    return JSONResponse(result)
 
 
 # ── Favicon / asset shortcuts ──────────────────────────────────────────────────

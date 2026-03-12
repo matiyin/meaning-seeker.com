@@ -1,18 +1,21 @@
 """
 Phase C: Three-layer filtering pipeline for visitor submissions.
 
-Layer 1: Hygiene check (pure Python, zero API calls)
-Layers 2+3: Relevance scoring + distillation combined into ONE batched Haiku call
+Challenge System v2: process_single_submission runs at submit time (web form).
+run_filtering_pipeline processes quarantine (social/X) at cycle time.
 
-Haiku budget: 0-1 calls per cycle (only when pending submissions exist and hygiene passes).
+Layer 1: Hygiene check (pure Python, zero API calls)
+Layers 2+3: Relevance scoring + distillation in ONE Haiku call.
+Edge case (score 4-6): optional second Haiku call for rejection reason.
 """
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import logging
-import random
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +25,15 @@ from . import resistance
 logger = logging.getLogger(__name__)
 
 QUARANTINE_DIR = DATA_DIR / "injections" / "quarantine"
+REJECTED_CHALLENGES_PATH = DATA_DIR / "injections" / "rejected_challenges.json"
+
+# Score bands for display (v2)
+SCORE_BAND_HIGH = "Highly relevant"  # 9-10
+SCORE_BAND_RELEVANT = "Relevant"  # 7-8
+SCORE_BAND_ACCEPTED = "Accepted"  # 5-6
+ACCEPT_THRESHOLD = 5
+DISTILL_THRESHOLD = 7
+DUPLICATE_SIMILARITY_THRESHOLD = 0.8
 
 # ── Layer 1: Hygiene blocklists ────────────────────────────────────────────────
 # Curated list: slurs, threat phrases, severe abuse. Avoids single words that
@@ -90,52 +102,97 @@ _INJECTION_PATTERNS: list[re.Pattern] = [
 ]
 
 
-def _hygiene_check(submission: dict) -> dict:
-    """Layer 1: Pure Python hygiene checks. No API calls. Returns {pass: bool, reason: str}."""
+def _hygiene_check(
+    submission: dict,
+    *,
+    check_duplicate_quarantine: bool = True,
+    check_duplicate_human_challenges: bool = False,
+) -> dict:
+    """Layer 1: Pure Python hygiene checks. Returns {pass: bool, reason: str}."""
     text: str = submission.get("text", "")
     stripped = text.strip()
 
-    # Length
+    # Length (keep 50 min per plan)
     if len(stripped) < 50:
         return {"pass": False, "reason": "too_short"}
     if len(stripped) > 2000:
         return {"pass": False, "reason": "too_long"}
 
-    # UTF-8 only (already str in Python, but check for non-printable control chars)
+    # Strip HTML
+    stripped = re.sub(r"<[^>]+>", "", stripped).strip()
+    if len(stripped) < 50:
+        return {"pass": False, "reason": "too_short"}
+
+    # UTF-8 / control chars
     control_chars = sum(1 for c in stripped if ord(c) < 32 and c not in "\n\r\t")
     if control_chars > 5:
         return {"pass": False, "reason": "invalid_encoding"}
 
-    # Toxicity: simple keyword blocklist (case-insensitive)
+    # Toxicity
     lower = stripped.lower()
     for term in _TOXICITY_TERMS:
         if term in lower:
             return {"pass": False, "reason": "toxicity"}
 
-    # Prompt injection patterns
+    # Prompt injection
     for pattern in _INJECTION_PATTERNS:
         if pattern.search(stripped):
             return {"pass": False, "reason": "prompt_injection"}
 
-    # Duplicate detection: SHA256 of lowercased/stripped text against recent pending
-    text_hash = hashlib.sha256(lower.encode("utf-8", errors="ignore")).hexdigest()
-    own_id = submission.get("submission_id", "")
-    for path in QUARANTINE_DIR.glob("sub-*.json"):
-        try:
-            other = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            continue
-        if other.get("submission_id") == own_id:
-            continue
-        if other.get("status") != "pending":
-            continue
-        other_hash = hashlib.sha256(
-            other.get("text", "").strip().lower().encode("utf-8", errors="ignore")
-        ).hexdigest()
-        if other_hash == text_hash:
+    if check_duplicate_quarantine:
+        text_hash = hashlib.sha256(lower.encode("utf-8", errors="ignore")).hexdigest()
+        own_id = submission.get("submission_id", "")
+        for path in QUARANTINE_DIR.glob("sub-*.json"):
+            try:
+                other = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            if other.get("submission_id") == own_id:
+                continue
+            if other.get("status") != "pending":
+                continue
+            other_hash = hashlib.sha256(
+                other.get("text", "").strip().lower().encode("utf-8", errors="ignore")
+            ).hexdigest()
+            if other_hash == text_hash:
+                return {"pass": False, "reason": "duplicate"}
+
+    if check_duplicate_human_challenges:
+        if _is_duplicate_vs_pending(stripped):
             return {"pass": False, "reason": "duplicate"}
 
     return {"pass": True, "reason": ""}
+
+
+def _is_duplicate_vs_pending(text: str) -> bool:
+    """Text similarity > 0.8 vs any pending challenge's raw_text in human_challenges."""
+    pending = [c for c in resistance.load_human_challenges() if c.get("status") == "pending"]
+    a = text.strip().lower()
+    for c in pending:
+        raw = (c.get("raw_text") or c.get("text") or "").strip().lower()
+        if not raw:
+            continue
+        ratio = difflib.SequenceMatcher(None, a, raw).ratio()
+        if ratio >= DUPLICATE_SIMILARITY_THRESHOLD:
+            return True
+    return False
+
+
+def _append_rejected(entry: dict) -> None:
+    """Append to rejected_challenges.json."""
+    REJECTED_CHALLENGES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    items = []
+    if REJECTED_CHALLENGES_PATH.exists():
+        try:
+            items = json.loads(REJECTED_CHALLENGES_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    if not isinstance(items, list):
+        items = []
+    items.append(entry)
+    REJECTED_CHALLENGES_PATH.write_text(
+        json.dumps(items, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
 
 def _mark_rejected(submission: dict, reason: str) -> None:
@@ -173,6 +230,195 @@ def _get_client():
     if API_BASE_URL:
         kwargs["base_url"] = API_BASE_URL
     return OpenAI(**kwargs)
+
+
+def _score_to_band(score: int) -> tuple[str, str]:
+    """Map numeric score to (band, band_key). band_key used for CSS class."""
+    if score >= 9:
+        return SCORE_BAND_HIGH, "high"
+    if score >= 7:
+        return SCORE_BAND_RELEVANT, "relevant"
+    if score >= 5:
+        return SCORE_BAND_ACCEPTED, "accepted"
+    return "Low relevance", "low"
+
+
+def _score_single_submission(text: str) -> tuple[int, str | None, str]:
+    """Haiku call: score 1-10, distilled challenge if score>=7, else None. Returns (score, challenge_text, reason)."""
+    from .config import API_KEY
+    if not API_KEY:
+        return 0, None, "API key not set"
+
+    prompt = f"""You are filtering a visitor submission for a philosophical AI art project about meaning.
+
+Score relevance 1-10 (favor: lived contradiction, concrete dilemmas, emotionally uncomfortable reports; disfavor: vague platitudes, trolling, off-topic).
+
+For submissions scoring 7+, provide a distilled philosophical challenge (2-4 sentences). For scores below 7, set challenge to null.
+
+Submission:
+{text}
+
+Reply with JSON only:
+{{"score": 8, "reason": "one sentence", "challenge": "distilled text or null"}}"""
+
+    try:
+        client = _get_client()
+        response = client.chat.completions.create(
+            model=FILTER_MODEL_ID,
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        json_match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not json_match:
+            return 0, None, "No JSON in response"
+        data = json.loads(json_match.group())
+        score = int(data.get("score", 0))
+        reason = str(data.get("reason", "")) or "No reason given"
+        challenge = data.get("challenge")
+        if challenge and isinstance(challenge, str) and challenge.strip().lower() != "null":
+            challenge = challenge.strip()
+        else:
+            challenge = None
+        return score, challenge, reason
+    except (json.JSONDecodeError, Exception) as e:
+        logger.error("filtering: score_single API error: %s", e)
+        return 0, None, str(e)
+
+
+def _generate_edge_case_rejection_reason(text: str, score: int) -> str:
+    """Haiku call for human-readable rejection reason when score 4-6."""
+    from .config import API_KEY
+    if not API_KEY:
+        return f"Relevance score {score}: did not meet threshold."
+
+    prompt = f"""A visitor submission to a philosophical AI project scored {score}/10 for relevance. Generate a brief, kind rejection reason (1 sentence) explaining why it wasn't accepted, without being harsh.
+
+Submission:
+{text[:500]}
+
+Reply with only the rejection sentence, no quotes or JSON."""
+
+    try:
+        client = _get_client()
+        response = client.chat.completions.create(
+            model=FILTER_MODEL_ID,
+            max_tokens=128,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        return raw[:200] if raw else f"Relevance score {score}: did not meet threshold."
+    except Exception as e:
+        logger.warning("filtering: edge-case rejection reason failed: %s", e)
+        return f"Relevance score {score}: did not meet threshold."
+
+
+def process_single_submission(
+    text: str,
+    submitter_name: str,
+    submission_id: str,
+) -> dict:
+    """Process one web form submission immediately. Returns {status, ...} for API response.
+
+    No quarantine write. Accept -> human_challenges.json. Reject -> rejected_challenges.json.
+    """
+    raw_text = text.strip()
+    submission = {"text": raw_text, "submission_id": submission_id}
+
+    hygiene = _hygiene_check(
+        submission,
+        check_duplicate_quarantine=False,
+        check_duplicate_human_challenges=True,
+    )
+    if not hygiene["pass"]:
+        reason_map = {
+            "too_short": "Your challenge is too short. Please add more detail (at least 50 characters).",
+            "too_long": "Your challenge is too long.",
+            "invalid_encoding": "Submission contained invalid characters. Please use plain text.",
+            "toxicity": "Your submission was rejected for violating our community guidelines.",
+            "prompt_injection": "Your submission was rejected.",
+            "duplicate": "This challenge is very similar to one already in the queue.",
+        }
+        reason = reason_map.get(hygiene["reason"], "Your submission did not meet our guidelines.")
+        _append_rejected({
+            "id": submission_id,
+            "raw_text": raw_text,
+            "submitted_at": datetime.now(timezone.utc).isoformat(),
+            "score": None,
+            "rejection_reason": hygiene["reason"],
+            "rejection_source": "rule",
+        })
+        out = {
+            "status": "rejected",
+            "reason": reason,
+            "rejection_source": "rule",
+            "message": "This challenge wasn't accepted.",
+        }
+        if hygiene["reason"] in ("toxicity", "prompt_injection"):
+            out["block_ip"] = True
+        return out
+
+    score, challenge_text, _ = _score_single_submission(raw_text)
+
+    if score < ACCEPT_THRESHOLD:
+        if 4 <= score <= 6:
+            reason = _generate_edge_case_rejection_reason(raw_text, score)
+            rejection_source = "ai"
+        else:
+            reason_map = {
+                1: "This challenge doesn't seem related to the inquiry's focus on meaning.",
+                2: "This challenge doesn't seem related to the inquiry's focus on meaning.",
+                3: "This challenge touches on meaning tangentially but lacks sufficient substance.",
+            }
+            reason = reason_map.get(score, f"Relevance score {score}: did not meet threshold.")
+            rejection_source = "rule"
+        _append_rejected({
+            "id": submission_id,
+            "raw_text": raw_text,
+            "submitted_at": datetime.now(timezone.utc).isoformat(),
+            "score": score,
+            "rejection_reason": reason,
+            "rejection_source": rejection_source,
+        })
+        return {
+            "status": "rejected",
+            "reason": reason,
+            "rejection_source": rejection_source,
+            "message": "This challenge wasn't accepted.",
+        }
+
+    if score >= DISTILL_THRESHOLD and challenge_text and len(raw_text) > 500:
+        display_text = challenge_text
+    else:
+        display_text = raw_text
+
+    score_band, score_band_key = _score_to_band(score)
+    entry = {
+        "id": submission_id,
+        "text": display_text,
+        "raw_text": raw_text,
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "score": score,
+        "status": "pending",
+        "source": "website",
+        "linked_cycle": None,
+        "linked_journal": None,
+        "resolved_at": None,
+        "lapse_reason": None,
+        "submitter_name": submitter_name.strip() or None,
+    }
+    resistance.append_challenge(entry)
+
+    return {
+        "status": "accepted",
+        "id": submission_id,
+        "text": display_text,
+        "score_band": score_band,
+        "score_band_key": score_band_key,
+        "submitted_at": entry["submitted_at"],
+        "submitter_name": entry["submitter_name"],
+        "message": "Your challenge has entered the queue.",
+    }
 
 
 def _score_and_distill(survivors: list[dict]) -> list[dict]:
@@ -240,19 +486,38 @@ Reply with JSON only:
                 "model": FILTER_MODEL_ID,
             }
 
-            if score < 7 or not entry.get("challenge"):
+            if score < ACCEPT_THRESHOLD:
                 _mark_rejected(sub, f"relevance_score_{score}")
+                _append_rejected({
+                    "id": sub["submission_id"],
+                    "raw_text": sub.get("text", ""),
+                    "submitted_at": sub.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                    "score": score,
+                    "rejection_reason": f"relevance_score_{score}",
+                    "rejection_source": "rule",
+                })
                 continue
 
-            challenge_text = entry["challenge"]
-
-            # Append one randomly selected original sentence to preserve voice
-            sentences = [s.strip() for s in sub["text"].split(".") if len(s.strip()) > 20]
-            if sentences:
-                preserved = random.choice(sentences)
-                challenge_text += f'\n\nOne visitor wrote: "{preserved}."'
+            raw = sub["text"].strip()
+            challenge_text = entry.get("challenge") if score >= DISTILL_THRESHOLD and len(raw) > 500 else None
+            if not challenge_text:
+                challenge_text = raw
 
             _mark_accepted(sub, challenge_text, filter_scores)
+            resistance.append_challenge({
+                "id": sub["submission_id"],
+                "text": challenge_text,
+                "raw_text": sub.get("text", ""),
+                "submitted_at": sub.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                "score": score,
+                "status": "pending",
+                "source": sub.get("source", "visitor"),
+                "linked_cycle": None,
+                "linked_journal": None,
+                "resolved_at": None,
+                "lapse_reason": None,
+                "submitter_name": sub.get("submitter_name"),
+            })
             results.append({"text": challenge_text, "submission_id": sub["submission_id"]})
 
     return results

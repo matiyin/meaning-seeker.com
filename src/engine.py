@@ -207,7 +207,7 @@ Respond with a single JSON object matching this schema exactly:
   }
 }
 
-Image decision: Set image_decision.create to true when any of these apply — you don't need a "breakthrough", a genuine insight is enough: (1) Something clicked — a new connection, a realization, a tension resolved, a claim sharpened. (2) You found a strong metaphor or image in your thinking that could work visually. (3) The idea you wrote about has a natural visual shape — contrast, tension, paradox, a journey. (4) You simply want a visual marker for this moment in your thinking. Aim for roughly 1 image every 3-5 cycles. Saying yes is encouraged.
+Image decision: Check the "Image Decision Context" block in your prompt — it tells you how many cycles have passed since the last image. Use that to guide your decision. Set image_decision.create to true only when the content genuinely calls for visual expression: (1) A real insight landed — a new connection, a resolved tension, a claim sharpened to the point where you feel it. (2) A concrete metaphor or image emerged in your thinking that has obvious visual life. (3) The idea has a strong visual shape — a genuine paradox, a collision of forces, a spatial or structural tension. Aim for roughly 1 image every 3-5 cycles. Do not create an image simply because you could — most cycles should not have one.
 
 When create is true, you are inventing a visual expression — not illustrating the text, not reproducing an existing art style. The image must show what the writing could not reach. It must be ABSTRACT and FANTASTICAL — not photographic, not realistic, not a close-up of a surface. Think of it as a painting or vision from another world that captures the feeling of this entry.
 
@@ -259,6 +259,7 @@ def build_user_message(
     threatened_commitments: list[ThreatMapEntry] | None = None,
     injection: Optional[InjectionRecord] = None,
     silence_context: Optional[str] = None,
+    cycles_since_last_image: int = 999,
 ) -> str:
     from .models import MonitoringResult
 
@@ -349,6 +350,29 @@ def build_user_message(
         ]
         blocks.append("## Commitments Under Threat This Cycle\n\n" + "\n".join(lines))
 
+    # Block 8b: Image spacing context
+    if cycles_since_last_image >= 999:
+        image_spacing_note = (
+            "No image has been generated yet. You may create one if this cycle genuinely warrants it."
+        )
+    elif cycles_since_last_image < 3:
+        image_spacing_note = (
+            f"An image was generated {cycles_since_last_image} cycle(s) ago. "
+            "Images should be spaced 3-5 cycles apart. Set image_decision.create to false this cycle "
+            "unless this entry is truly exceptional."
+        )
+    elif cycles_since_last_image < 5:
+        image_spacing_note = (
+            f"An image was generated {cycles_since_last_image} cycle(s) ago. "
+            "You are within the normal 3-5 cycle window. Only create an image if the content genuinely calls for one."
+        )
+    else:
+        image_spacing_note = (
+            f"No image has been generated for {cycles_since_last_image} cycles. "
+            "An image would be welcome if this cycle has something worth expressing visually."
+        )
+    blocks.append(f"## Image Decision Context\n\n{image_spacing_note}")
+
     # Block 9: Injected element (Resistance Manager)
     if cycle == 1:
         challenge = (
@@ -358,13 +382,29 @@ def build_user_message(
             "Begin where you actually are, not where you think you should be."
         )
         source_label = "first_cycle"
+        blocks.append(f"## This Cycle's Challenge\n\n**Source:** {source_label}\n\n{challenge}")
+    elif injection and injection.source == "weekly_review" and injection.text.strip():
+        blocks.append(injection.text.strip())
     elif injection and injection.text.strip():
         challenge = injection.text.strip()
         source_label = injection.source
+        blocks.append(f"## This Cycle's Challenge\n\n**Source:** {source_label}\n\n{challenge}")
     else:
         challenge = "No external challenge this cycle. Push into territory you have been avoiding."
         source_label = "none"
-    blocks.append(f"## This Cycle's Challenge\n\n**Source:** {source_label}\n\n{challenge}")
+        blocks.append(f"## This Cycle's Challenge\n\n**Source:** {source_label}\n\n{challenge}")
+
+    # Organic weaving: visitor's voice block (not used for weekly_review)
+    woven = injection.woven_challenge if injection and injection.source != "weekly_review" else None
+    if woven and woven.get("text"):
+        who = (woven.get("submitter_name") or "A visitor").strip()
+        voice_block = f'''## A Visitor's Voice
+
+{who} asked: "{woven["text"]}"
+
+If this resonates with your inquiry, let it inform your thinking.
+Do not treat it as a separate task.'''
+        blocks.append(voice_block)
 
     return "\n\n---\n\n".join(blocks)
 
@@ -471,6 +511,7 @@ def run(
     threatened_commitments: list[ThreatMapEntry] | None = None,
     injection: Optional[InjectionRecord] = None,
     silence_context: Optional[str] = None,
+    cycles_since_last_image: int = 999,
 ) -> tuple[CycleOutput, str, str, str, str, dict | None]:
     """Returns (output, system_prompt, user_message, raw_response, prompt_hash, usage_inquiry)."""
     system_prompt = get_system_prompt()
@@ -485,6 +526,7 @@ def run(
         threatened_commitments=threatened_commitments or [],
         injection=injection,
         silence_context=silence_context,
+        cycles_since_last_image=cycles_since_last_image,
     )
     output, raw_response, usage_inquiry = call_api(system_prompt, user_message, cycle)
     prompt_hash = "sha256:" + hashlib.sha256(

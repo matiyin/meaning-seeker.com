@@ -65,6 +65,12 @@ def init_dirs() -> None:
         if not p.exists():
             _atomic_write_json(p, [])
 
+    # Challenge System v2: rejected_challenges.json for creator records
+    rejected_path = DATA_DIR / "injections" / "rejected_challenges.json"
+    if not rejected_path.exists():
+        rejected_path.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write_json(rejected_path, [])
+
     move_log_path = DATA_DIR / "move_log.json"
     if not move_log_path.exists():
         _atomic_write_json(move_log_path, [])

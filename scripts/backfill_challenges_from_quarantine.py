@@ -80,11 +80,20 @@ def main() -> None:
 
         challenges[i] = c
 
+    # Fix over-distilled text: restore raw_text as display text for short submissions
+    dedistilled = 0
+    for c in challenges:
+        raw = (c.get("raw_text") or "").strip()
+        text = (c.get("text") or "").strip()
+        if raw and text != raw and len(raw) <= 500:
+            c["text"] = raw
+            dedistilled += 1
+
     # Rewrite with normalized entries
     with open(HC_PATH, "w", encoding="utf-8") as f:
         json.dump(challenges, f, indent=2, ensure_ascii=False)
 
-    print(f"Backfilled {updated} challenge(s) from quarantine. Total: {len(challenges)}.")
+    print(f"Backfilled {updated} challenge(s) from quarantine. Restored {dedistilled} over-distilled text(s). Total: {len(challenges)}.")
 
 
 if __name__ == "__main__":

@@ -111,6 +111,7 @@ def update_challenge_status(
             _atomic_write_json(HUMAN_CHALLENGES_PATH, items)
             logger.info("Updated challenge %s to status=%s", challenge_id, status)
             return True
+    logger.warning("update_challenge_status: challenge_id %r not found in human_challenges", challenge_id)
     return False
 
 
@@ -266,16 +267,28 @@ def select_injection(
     # Organic weaving: check for relevant pending challenge
     woven = find_organic_weave_candidate(text, tensions)
     if woven:
+        woven_id = woven.get("id", "")
         rel = _containment_ratio(
             (woven.get("text") or "").strip(),
             f"{text} {' '.join(t.description for t in tensions if hasattr(t, 'description'))}",
         )
         record.woven_challenge = {
-            "submission_id": woven.get("id", ""),
+            "submission_id": woven_id,
             "text": (woven.get("text") or "").strip(),
             "relevance_score": rel,
             "submitter_name": woven.get("submitter_name"),
         }
+        # Mark as woven immediately at selection time so the status is correct even if
+        # the cycle later fails before the orchestrator's post-cycle cleanup runs.
+        # linked_journal is set to str(cycle) as a placeholder; the orchestrator confirms
+        # it post-cycle (same value, so re-calling update_challenge_status is a no-op).
+        if woven_id:
+            update_challenge_status(
+                woven_id,
+                "woven",
+                linked_cycle=cycle,
+                linked_journal=str(cycle),
+            )
 
     # Update cooldown
     if source == "counterposition" and eid:

@@ -1,5 +1,21 @@
 # Scripts
 
+## sync_challenge_status_from_cycles.py
+
+Repairs `human_challenges.json` when a challenge was woven into a cycle but still shows as "Waiting" (e.g. due to a race or missed update). Scans `archive/cycles` for `injection.woven_challenge` and sets those challenges to `status=woven` with `linked_cycle`/`linked_journal`. Run on the server if the queue and journal get out of sync.
+
+```bash
+.venv/bin/python scripts/sync_challenge_status_from_cycles.py
+```
+
+## backfill_challenges_from_quarantine.py
+
+Backfills legacy human_challenges with `submitted_at`, `score`, `raw_text` from quarantine, and restores over-distilled `text` to the visitor's original words.
+
+```bash
+.venv/bin/python scripts/backfill_challenges_from_quarantine.py
+```
+
 ## regenerate_images.py
 
 Re-runs image art direction and generation for existing cycles using the current engine settings. Useful for A/B testing prompt changes without waiting for new cycles.

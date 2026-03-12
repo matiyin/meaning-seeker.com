@@ -605,7 +605,7 @@ a.activity-row-link:hover{background:var(--hover);color:var(--text);text-decorat
 .queue-subhead{font-size:var(--font-size-sm);font-weight:600;color:var(--text2);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:.04em}
 .challenge-list{list-style:none;padding:0;margin:0 0 1.5rem}
 .challenge-item{border:0.0625rem solid var(--sep);border-radius:0.75rem;padding:1rem 1.25rem;margin-bottom:0.75rem;background:color-mix(in srgb,var(--surface) 48%,transparent)}
-.challenge-item.encountered{border-left:0.25rem solid var(--link)}
+.challenge-item.encountered{margin:0 0 1.25rem;padding:1.25rem 1.5rem;border-radius:0.5rem;background:color-mix(in srgb,var(--link) 6%,transparent);}
 .challenge-text{font-family:'Source Serif 4',Georgia,serif;font-size:var(--font-size-body);font-style:italic;color:var(--text);margin:0 0 0.5rem;border:none;padding:0}
 .challenge-meta{font-size:var(--font-size-xs);color:var(--text2);display:flex;flex-wrap:wrap;gap:0.5rem 1rem;align-items:center}
 .challenge-band{display:inline-block;padding:0.125rem 0.5rem;border-radius:0.25rem;font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}

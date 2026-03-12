@@ -326,13 +326,8 @@ def run_cycle() -> bool:
     memory.save_journal_entry(cycle, journal_text)
 
     # Challenge System v2: post-cycle status updates
-    if injection.woven_challenge and injection.woven_challenge.get("submission_id"):
-        resistance.update_challenge_status(
-            injection.woven_challenge["submission_id"],
-            "woven",
-            linked_cycle=cycle,
-            linked_journal=str(cycle),
-        )
+    # Woven challenges are marked at selection time in resistance.select_injection.
+    # Weekly review challenges are addressed here because they need the journal entry to exist first.
     if injection.source == "weekly_review":
         for cid in (injection.challenges_addressed or []) + (injection.challenges_mentioned or []):
             resistance.update_challenge_status(

@@ -9,6 +9,7 @@ from .config import (
     DATA_DIR,
     API_PROVIDER,
     FORCE_IMAGE,
+    FORCE_WEEKLY_REVIEW,
     IMAGE_MODEL,
     MODEL_ID,
 )
@@ -148,13 +149,15 @@ def run_cycle() -> bool:
 
     # Sunday weekly review or normal injection
     is_sunday = datetime.now(timezone.utc).weekday() == 6
-    use_weekly_review = False
-    if CYCLE_DAILY_AT_UTC_PARSED and is_sunday:
+    use_weekly_review = bool(FORCE_WEEKLY_REVIEW)
+    if not use_weekly_review and CYCLE_DAILY_AT_UTC_PARSED and is_sunday:
         use_weekly_review = True
-    elif not CYCLE_DAILY_AT_UTC_PARSED and cycle % 7 == 0:
+    elif not use_weekly_review and not CYCLE_DAILY_AT_UTC_PARSED and cycle % 7 == 0:
         use_weekly_review = True
 
     if use_weekly_review:
+        if FORCE_WEEKLY_REVIEW:
+            logger.info("Cycle %s: FORCE_WEEKLY_REVIEW=1, running weekly review", cycle)
         injection = resistance.build_weekly_review_injection(cycle, state)
     else:
         pattern_interruption = monitor.get_pending_interruption()
@@ -224,7 +227,26 @@ def run_cycle() -> bool:
         recent_thinking,
         commitment_map,
     )
-    usage_monitoring = _sum_usage(usage_threat, usage_post)
+
+    # Weekly review: additional monitoring for challenge engagement and defensiveness
+    if injection.source == "weekly_review":
+        hc_texts = []
+        if injection.challenges_addressed:
+            hc_map_pre = {c["id"]: c for c in resistance.load_human_challenges()}
+            hc_texts = [
+                (hc_map_pre.get(cid) or {}).get("text", "").strip()
+                for cid in injection.challenges_addressed
+                if (hc_map_pre.get(cid) or {}).get("text", "").strip()
+            ]
+        commitment_update_dicts = [u.model_dump() for u in output.commitment_updates]
+        review_engagement, review_defensive, usage_review = monitor.run_weekly_review_monitoring(
+            output.thinking, hc_texts, commitment_update_dicts,
+        )
+        monitoring.review_challenge_engagement = review_engagement
+        monitoring.review_defensive = review_defensive
+        usage_monitoring = _sum_usage(usage_threat, usage_post, usage_review)
+    else:
+        usage_monitoring = _sum_usage(usage_threat, usage_post)
 
     gate = monitor.evaluate_gate(monitoring)
     if gate == "blocked":
@@ -366,6 +388,8 @@ def run_cycle() -> bool:
             "move_classification": monitoring.move_classification,
             "self_reference_ratio": monitoring.self_reference_ratio,
             "has_concrete_grounding": monitoring.has_concrete_grounding,
+            "review_challenge_engagement": monitoring.review_challenge_engagement,
+            "review_defensive": monitoring.review_defensive,
         },
         "gate": gate,
         "model_id": MODEL_ID,

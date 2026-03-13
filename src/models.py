@@ -69,6 +69,9 @@ class MonitoringResult(BaseModel):
     move_classification: str = "none"
     self_reference_ratio: float = 0.0  # 0.0-1.0, fraction about AI's own nature
     has_concrete_grounding: bool = False
+    # Weekly review monitoring (populated only for weekly_review cycles)
+    review_challenge_engagement: Optional[list[dict]] = None  # [{challenge: str, engaged: bool, note: str}]
+    review_defensive: Optional[bool] = None  # true if response absorbs challenges without commitment impact
 
 
 class InjectionRecord(BaseModel):

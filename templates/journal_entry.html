@@ -56,7 +56,9 @@
       <p class="entry-challenge-cta-text">You can send a philosophical challenge to shape the inquiry — a dilemma, contradiction, or observation for the engine to wrestle with. Challenges on any topic are welcome; if yours connects to what it's thinking about, it may be woven into a future entry or addressed in the Sunday review.</p>
       <p class="entry-challenge-cta-link"><a href="/challenge">Submit a challenge</a></p>
     </div>
-    {% if body_after_html %}{{ body_after_html | safe }}{% endif %}
+    {% if body_after_html %}{{ body_after_html | safe }}
+    <p class="entry-insights-link"><a href="/insights#tensions">View all tensions on the Insights page</a></p>
+    {% endif %}
   </div>
 
   <!-- Prev/next navigation -->

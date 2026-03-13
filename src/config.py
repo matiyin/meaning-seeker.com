@@ -124,3 +124,5 @@ SOCIAL_MODERATION_ENABLED: bool = os.getenv("SOCIAL_MODERATION_ENABLED", "true")
 # Challenge System v2: weekly review and organic weaving
 MAX_REVIEW_CHALLENGES: int = int(os.getenv("MAX_REVIEW_CHALLENGES", "10"))
 ORGANIC_WEAVE_THRESHOLD: float = float(os.getenv("ORGANIC_WEAVE_THRESHOLD", "0.3"))
+# Force Sunday weekly review this cycle (for testing). When set, run weekly review instead of normal injection.
+FORCE_WEEKLY_REVIEW: bool = os.getenv("FORCE_WEEKLY_REVIEW", "").lower() in ("1", "true", "yes")

@@ -308,6 +308,49 @@ def append_challenge(entry: dict) -> None:
     logger.info("Appended challenge: %s", entry.get("id", "?"))
 
 
+def _build_distinctiveness_note(texts: list[str]) -> str:
+    """When >=2 challenges share >40% of their significant words, annotate
+    each challenge's distinctive angle to discourage collapsing them."""
+    if len(texts) < 2:
+        return ""
+    STOP = {"the", "and", "but", "for", "are", "was", "not", "you", "all",
+            "can", "had", "her", "one", "our", "out", "has", "his", "how",
+            "its", "may", "new", "now", "old", "see", "way", "who", "did",
+            "get", "let", "say", "she", "too", "use", "just", "like", "that",
+            "this", "with", "have", "from", "they", "been", "some", "than",
+            "them", "then", "what", "when", "will", "each", "which", "there",
+            "could", "would", "about", "into", "only", "also", "does", "life",
+            "meaning", "mean", "people", "need", "exist", "something", "isn"}
+
+    def _significant_words(text: str) -> set[str]:
+        return {w.lower().strip("?.,!\"'()") for w in text.split()
+                if len(w.strip("?.,!\"'()")) > 2} - STOP
+
+    word_sets = [_significant_words(t) for t in texts]
+    shared = word_sets[0]
+    for ws in word_sets[1:]:
+        shared = shared & ws
+
+    if not word_sets[0]:
+        return ""
+    overlap = len(shared) / max(len(ws) for ws in word_sets)
+    if overlap < 0.3:
+        return ""
+
+    note_lines = [
+        "**Note:** These challenges share a theme but differ in emphasis. "
+        "Engage with each one's distinct angle:"
+    ]
+    for i, (text, ws) in enumerate(zip(texts, word_sets), 1):
+        unique = ws - shared
+        if unique:
+            keywords = ", ".join(sorted(unique)[:4])
+            note_lines.append(f"- Challenge {i} emphasizes: {keywords}")
+        else:
+            note_lines.append(f"- Challenge {i}: find its unique angle")
+    return "\n".join(note_lines)
+
+
 def build_weekly_review_injection(cycle: int, state: StateFile) -> InjectionRecord:
     """Build injection for Sunday weekly review. Top pending + woven from past week."""
     all_challenges = load_human_challenges()
@@ -329,6 +372,8 @@ def build_weekly_review_injection(cycle: int, state: StateFile) -> InjectionReco
     lines: list[str] = []
     mentioned_lines: list[str] = []
 
+    challenge_texts: list[str] = []
+
     for c in pending[:MAX_REVIEW_CHALLENGES]:
         sid = c.get("id", "")
         if not sid:
@@ -338,6 +383,7 @@ def build_weekly_review_injection(cycle: int, state: StateFile) -> InjectionReco
         text = (c.get("text") or "").strip()
         if text:
             lines.append(f'{len(lines) + 1}. "{text}" (score: {score})')
+            challenge_texts.append(text)
 
     for c in woven_recent:
         sid = c.get("id", "")
@@ -350,6 +396,7 @@ def build_weekly_review_injection(cycle: int, state: StateFile) -> InjectionReco
             cycle_num = c.get("linked_cycle") or "?"
             if text:
                 lines.append(f'{len(lines) + 1}. "{text}" (score: {score}, woven Cycle {cycle_num})')
+                challenge_texts.append(text)
         else:
             mentioned.append(sid)
             text = (c.get("text") or "").strip()
@@ -357,13 +404,33 @@ def build_weekly_review_injection(cycle: int, state: StateFile) -> InjectionReco
             if text:
                 mentioned_lines.append(f'- "{text}" (Cycle {cycle_num})')
 
+    distinctiveness_note = _build_distinctiveness_note(challenge_texts)
+
     prompt_parts = [
         "## Weekly Review\n\n"
-        "This cycle, you are responding to the voices of visitors who\n"
-        "challenged your inquiry this week.\n\n## Challenges to Address\n"
+        "This cycle, you are responding to the voices of visitors who "
+        "challenged your inquiry this week.\n\n"
+        "Your obligation is to the challengers. Their questions deserve your best "
+        "engagement, not your best defense. A weekly review that leaves your "
+        "commitments untouched has failed.\n\n"
+        "### Rules for this review\n\n"
+        "1. **Steelman first.** For each challenge, articulate the strongest "
+        "version of the objection before responding. Do not weaken what the "
+        "visitor asked.\n"
+        "2. **Address each challenge on its own terms** before synthesizing. "
+        "Even when challenges share a theme, each has a distinct emphasis — "
+        "honor those differences. Do not collapse them into one response.\n"
+        "3. **Let challenges land.** If a challenge exposes a genuine weakness "
+        "in your thinking, lower your confidence on the relevant commitment or "
+        "abandon it. Do not absorb every challenge into your existing framework.\n"
+        "4. **Avoid both-and-synthesis as a default.** Do not resolve every "
+        "binary by claiming both sides are true. If forced to choose, choose.\n\n"
+        "## Challenges to Address\n"
     ]
     if lines:
         prompt_parts.append("\n".join(lines))
+        if distinctiveness_note:
+            prompt_parts.append("\n\n" + distinctiveness_note)
     else:
         prompt_parts.append("(No open challenges this week.)")
     if mentioned_lines:

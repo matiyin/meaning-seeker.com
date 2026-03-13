@@ -192,13 +192,19 @@ def run_post_cycle(
     raw_rep = ""
     try:
         recent_block = "\n\n---\n\n".join(recent_thinking[-5:]) if recent_thinking else "(No previous cycles)"
-        prompt = f"""Here is the current cycle's output and the outputs from the last 5 cycles. On a scale of 1-5, how much new ground does the current cycle cover? Reply with JSON: {{ "score": 1-5, "comment": "One sentence explaining why." }}
+        prompt = f"""Rate how much NEW ground the CURRENT cycle covers compared to previous cycles. Score 1-5 (1=entirely repetitive, 5=completely new territory).
 
-Current cycle:
+IMPORTANT: Your comment must describe what is new (or not) in the CURRENT CYCLE ONLY. Do not describe content from previous cycles.
+
+Reply with JSON: {{ "score": 1-5, "comment": "One sentence about what the CURRENT cycle specifically contributes that is new." }}
+
+========== CURRENT CYCLE (evaluate ONLY this) ==========
 {thinking[:4000]}
+========== END CURRENT CYCLE ==========
 
-Previous cycles:
+========== PREVIOUS CYCLES (for comparison only — do NOT describe these) ==========
 {recent_block[:6000]}
+========== END PREVIOUS CYCLES ==========
 
 {_JSON_ONLY_INSTRUCTION}"""
         raw_rep, u_rep = _call_monitor(prompt, call_label="repetition")
@@ -323,6 +329,68 @@ For each threatened commitment, did the thinking meaningfully engage with the th
     _check_pattern_interruption(move_log)
 
     return result, acc
+
+
+def run_weekly_review_monitoring(
+    thinking: str,
+    challenge_texts: list[str],
+    commitment_updates: list[dict],
+) -> tuple[list[dict], bool, dict]:
+    """Post-cycle monitoring specific to weekly review.
+    Returns (challenge_engagement, is_defensive, usage_dict).
+    challenge_engagement: [{challenge, engaged, note}] per challenge.
+    is_defensive: True if response absorbs all challenges without lowering any commitment confidence.
+    """
+    acc = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    engagement: list[dict] = []
+    is_defensive = False
+
+    if not challenge_texts:
+        return engagement, is_defensive, acc
+
+    # Check per-challenge engagement
+    raw_eng = ""
+    try:
+        numbered = "\n".join(f"{i+1}. {t}" for i, t in enumerate(challenge_texts))
+        prompt = f"""A philosophical AI was given these visitor challenges in a weekly review:
+
+{numbered}
+
+Here is its response:
+{thinking[:5000]}
+
+For each challenge, did the response engage with that challenge's SPECIFIC question on its own terms, or did it generalize/merge it with other challenges? A challenge is "engaged" if the response addresses its distinct emphasis — not just the shared theme.
+
+Reply with JSON: {{ "challenges": [ {{ "number": 1, "engaged": true, "note": "one sentence" }} ] }}
+
+{_JSON_ONLY_INSTRUCTION}"""
+        raw_eng, u_eng = _call_monitor(prompt, call_label="review_engagement")
+        _add_usage(acc, u_eng)
+        data = _parse_first_json(raw_eng)
+        for item in (data.get("challenges") or []):
+            idx = int(item.get("number", 0)) - 1
+            if 0 <= idx < len(challenge_texts):
+                engagement.append({
+                    "challenge": challenge_texts[idx][:200],
+                    "engaged": bool(item.get("engaged", True)),
+                    "note": str(item.get("note", ""))[:300],
+                })
+    except Exception as e:
+        _log_monitor_parse_failure("review_engagement", raw_eng, e)
+
+    # Defensiveness: did any commitment confidence decrease?
+    has_decrease = any(
+        u.get("action") == "update" and u.get("confidence") is not None
+        for u in commitment_updates
+        if u.get("action") in ("update", "abandon")
+    )
+    has_abandon = any(u.get("action") == "abandon" for u in commitment_updates)
+
+    if not has_decrease and not has_abandon and len(challenge_texts) >= 2:
+        is_defensive = True
+        logger.info("Weekly review monitoring: flagged as defensive — no commitment confidence changes despite %d challenges", len(challenge_texts))
+
+    return engagement, is_defensive, acc
 
 
 def _load_move_log() -> list[str]:

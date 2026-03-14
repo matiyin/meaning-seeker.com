@@ -1,0 +1,14 @@
+curl		Crawlers
+wget		Crawlers
+Wget		Crawlers
+python-requests	Crawlers
+kube-probe	Crawlers
+Googlebot	Crawlers
+bingbot		Crawlers
+Bingbot		Crawlers
+Slurp		Crawlers
+DuckDuckBot	Crawlers
+Bytespider	Crawlers
+health		Crawlers
+UptimeRobot	Crawlers
+Pingdom		Crawlers

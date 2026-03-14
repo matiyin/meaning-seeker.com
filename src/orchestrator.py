@@ -309,12 +309,21 @@ def run_cycle() -> bool:
         output.image_decision = ImageDecision(create=True, prompt=fallback)
         logger.info("Cycle %s: FORCE_IMAGE=1, using prompt: %s", cycle, fallback[:80])
     image_path = None
+    usage_image = None
     if output.image_decision.create and (output.image_decision.prompt or output.image_decision.beyond_words or output.image_decision.concept):
         try:
             from . import images
-            image_path = images.generate_image(cycle, output.image_decision)
+            image_path, usage_image = images.generate_image(cycle, output.image_decision)
         except Exception as _e:
             logger.warning("Phase C: image generation error (non-fatal): %s", _e)
+
+    # Add image usage to totals if present
+    if usage_image:
+        usage["image"] = usage_image
+        usage["total_tokens"] = (
+            usage.get("total_tokens", 0)
+            + (usage_image.get("total_tokens", 0) or 0)
+        )
 
     journal_mode = "weekly_review" if injection.source == "weekly_review" else output.mode
     woven_challenge = injection.woven_challenge if injection.woven_challenge else None

@@ -163,10 +163,12 @@ Inject a challenge into the queue (picked up on the next cycle):
 .venv/bin/python3 -m src.interlocutor "Your philosophical challenge here"
 .venv/bin/python3 -m src.interlocutor --list          # show tensions + commitments
 .venv/bin/python3 -m src.interlocutor --show-queue    # show queue length
+.venv/bin/python3 -m src.interlocutor --rejected      # list rejected challenges (with score/reason)
+.venv/bin/python3 -m src.interlocutor --promote <id> # promote a rejected challenge back into the queue
 .venv/bin/python3 -m src.interlocutor --observe "Something the AI hasn't considered"
 ```
 
-The `--observe` flag adds to the "What I'm Not Thinking About" section on the Insights page.
+The `--observe` flag adds to the "What I'm Not Thinking About" section on the Insights page. Rejected submissions are recorded in `data/injections/rejected_challenges.json`; use `--rejected` to review them and `--promote <id>` to put a borderline rejection back into the pending queue.
 
 ---
 

@@ -43,6 +43,7 @@ def _atomic_write_json(path: Path, data: dict | list) -> None:
 def init_dirs() -> None:
     dirs = [
         DATA_DIR,
+        DATA_DIR / "admin",
         DATA_DIR / "archive" / "cycles",
         DATA_DIR / "archive" / "journal",
         DATA_DIR / "prompts",

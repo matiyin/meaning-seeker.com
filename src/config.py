@@ -85,6 +85,10 @@ WEB_PORT: int = int(os.getenv("WEB_PORT", "3000"))
 # Phase C: CSRF protection for submission form (set in production)
 CSRF_SECRET: str = os.getenv("CSRF_SECRET", "dev-only-change-in-production")
 
+# Phase C: Admin dashboard (password-protected)
+ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
+ADMIN_SALT: str = os.getenv("ADMIN_SALT", "admin-session-salt")
+
 # Phase C: Submission rate limiting
 SUBMISSION_RATE_LIMIT: str = os.getenv("SUBMISSION_RATE_LIMIT", "3/hour")
 SUBMISSION_MIN_LENGTH: int = 50

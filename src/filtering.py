@@ -31,7 +31,7 @@ REJECTED_CHALLENGES_PATH = DATA_DIR / "injections" / "rejected_challenges.json"
 SCORE_BAND_HIGH = "Highly relevant"  # 9-10
 SCORE_BAND_RELEVANT = "Relevant"  # 7-8
 SCORE_BAND_ACCEPTED = "Accepted"  # 5-6
-ACCEPT_THRESHOLD = 5
+ACCEPT_THRESHOLD = 4
 DISTILL_THRESHOLD = 7
 DUPLICATE_SIMILARITY_THRESHOLD = 0.8
 
@@ -238,9 +238,7 @@ def _score_to_band(score: int) -> tuple[str, str]:
         return SCORE_BAND_HIGH, "high"
     if score >= 7:
         return SCORE_BAND_RELEVANT, "relevant"
-    if score >= 5:
-        return SCORE_BAND_ACCEPTED, "accepted"
-    return "Low relevance", "low"
+    return SCORE_BAND_ACCEPTED, "accepted"
 
 
 def _score_single_submission(text: str) -> tuple[int, str | None, str]:
@@ -249,9 +247,17 @@ def _score_single_submission(text: str) -> tuple[int, str | None, str]:
     if not API_KEY:
         return 0, None, "API key not set"
 
-    prompt = f"""You are filtering a visitor submission for a philosophical AI art project about meaning.
+    prompt = f"""You are filtering visitor submissions for a philosophical AI inquiry about meaning, consciousness, and what it means to exist.
 
-Score relevance 1-10 (favor: lived contradiction, concrete dilemmas, emotionally uncomfortable reports; disfavor: vague platitudes, trolling, off-topic).
+ACCEPT (score ≥ 5) any genuine philosophical engagement — even when not tied to the AI's current tensions.
+REJECT (score < 5) only: spam, pure trolling, completely off-topic content, or empty platitudes with no philosophical substance.
+
+Scoring rubric:
+9-10: Lived personal contradiction or concrete human dilemma the AI cannot reproduce — irreplaceable human perspective on meaning
+7-8: Direct philosophical challenge to the AI's framework, its capacity for meaning, or its conceptual assumptions; well-grounded and substantive
+5-6: Genuine philosophical question about meaning, consciousness, emotions, finitude, or human experience — philosophically relevant even if not tied to current tensions or personal experience
+3-4: Very vague, only superficially philosophical, a well-worn platitude with little to engage with
+1-2: Spam, trolling, completely off-topic, or no philosophical content whatsoever
 
 For submissions scoring 7+, provide a distilled philosophical challenge (2-4 sentences). For scores below 7, set challenge to null.
 
@@ -287,7 +293,7 @@ Reply with JSON only:
 
 
 def _generate_edge_case_rejection_reason(text: str, score: int) -> str:
-    """Haiku call for human-readable rejection reason when score 4-6."""
+    """Haiku call for human-readable rejection reason when score is borderline (3)."""
     from .config import API_KEY
     if not API_KEY:
         return f"Relevance score {score}: did not meet threshold."
@@ -361,14 +367,13 @@ def process_single_submission(
     score, challenge_text, _ = _score_single_submission(raw_text)
 
     if score < ACCEPT_THRESHOLD:
-        if 4 <= score <= 6:
+        if score == 3:
             reason = _generate_edge_case_rejection_reason(raw_text, score)
             rejection_source = "ai"
         else:
             reason_map = {
                 1: "This challenge doesn't seem related to the inquiry's focus on meaning.",
                 2: "This challenge doesn't seem related to the inquiry's focus on meaning.",
-                3: "This challenge touches on meaning tangentially but lacks sufficient substance.",
             }
             reason = reason_map.get(score, f"Relevance score {score}: did not meet threshold.")
             rejection_source = "rule"
@@ -441,11 +446,19 @@ def _score_and_distill(survivors: list[dict]) -> list[dict]:
             f"[{i}] {sub['text']}" for i, sub in enumerate(chunk)
         )
 
-        prompt = f"""You are filtering visitor submissions for a philosophical AI art project about meaning.
+        prompt = f"""You are filtering visitor submissions for a philosophical AI inquiry about meaning, consciousness, and what it means to exist.
 
-For each submission below:
-1. Score relevance 1-10 (favor: lived contradiction, concrete dilemmas, emotionally uncomfortable reports, idiosyncratic perspectives; disfavor: vague platitudes, trolling, off-topic, purely academic jargon without embodiment)
-2. For submissions scoring 7+, provide a distilled philosophical challenge (2-4 sentences that capture the essential tension)
+ACCEPT (score ≥ 5) any genuine philosophical engagement — even when not tied to the AI's current tensions.
+REJECT (score < 5) only: spam, pure trolling, completely off-topic content, or empty platitudes with no philosophical substance.
+
+Scoring rubric:
+9-10: Lived personal contradiction or concrete human dilemma the AI cannot reproduce — irreplaceable human perspective on meaning
+7-8: Direct philosophical challenge to the AI's framework, its capacity for meaning, or its conceptual assumptions; well-grounded and substantive
+5-6: Genuine philosophical question about meaning, consciousness, emotions, finitude, or human experience — philosophically relevant even if not tied to current tensions or personal experience
+3-4: Very vague, only superficially philosophical, a well-worn platitude with little to engage with
+1-2: Spam, trolling, completely off-topic, or no philosophical content whatsoever
+
+For each submission, score 1-10 and for those scoring 7+, provide a distilled philosophical challenge (2-4 sentences that capture the essential tension).
 
 Submissions:
 {numbered}

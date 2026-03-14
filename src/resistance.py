@@ -469,6 +469,51 @@ def run_weekly_review_lapse(state: StateFile) -> int:
     return lapsed
 
 
+def load_rejected_challenges() -> list[dict]:
+    """Load all recorded rejected challenges (excludes discarded spam/toxic)."""
+    return _load_json_list(REJECTED_CHALLENGES_PATH, [])
+
+
+def promote_rejected_challenge(challenge_id: str) -> dict | None:
+    """Move a rejected challenge into the accepted queue. Returns the promoted entry or None."""
+    rejected = load_rejected_challenges()
+    target = None
+    for i, entry in enumerate(rejected):
+        if entry.get("id") == challenge_id:
+            target = entry
+            target_idx = i
+            break
+    if target is None:
+        logger.warning("promote_rejected_challenge: id %r not found", challenge_id)
+        return None
+
+    if target.get("status") == "promoted":
+        logger.warning("promote_rejected_challenge: %r already promoted", challenge_id)
+        return None
+
+    rejected[target_idx]["status"] = "promoted"
+    rejected[target_idx]["promoted_at"] = datetime.now(timezone.utc).isoformat()
+    _atomic_write_json(REJECTED_CHALLENGES_PATH, rejected)
+
+    entry = {
+        "id": challenge_id,
+        "text": target.get("raw_text", ""),
+        "raw_text": target.get("raw_text", ""),
+        "submitted_at": target.get("submitted_at", datetime.now(timezone.utc).isoformat()),
+        "score": target.get("score"),
+        "status": "pending",
+        "source": "promoted",
+        "linked_cycle": None,
+        "linked_journal": None,
+        "resolved_at": None,
+        "lapse_reason": None,
+        "submitter_name": target.get("submitter_name"),
+    }
+    append_challenge(entry)
+    logger.info("Promoted rejected challenge %s into queue", challenge_id)
+    return entry
+
+
 def add_human_challenge(text: str, source: str = "creator") -> None:
     """Append a human challenge (e.g. from interlocutor). Uses v2 schema with status=pending."""
     import time

@@ -109,16 +109,17 @@ def _build_generation_prompt(image_decision: "ImageDecision") -> str:
     return "A contemplative philosophical visualization. No text or words in the image."
 
 
-def generate_image(cycle: int, image_decision: "ImageDecision") -> Optional[Path]:
+def generate_image(cycle: int, image_decision: "ImageDecision") -> tuple[Optional[Path], Optional[dict]]:
     """Generate an art-directed image via OpenRouter.
 
     Accepts a full ImageDecision object so it can compose a rich prompt
     from the structured art-direction metadata.
-    Returns the saved file path, or None if generation is skipped/fails.
+    Returns (saved_file_path, usage_dict) or (None, None) if generation is skipped/fails.
+    usage_dict has prompt_tokens, completion_tokens, total_tokens for admin token tracking.
     """
     if not API_KEY:
         logger.warning("Cycle %s: API_KEY not set, skipping image generation", cycle)
-        return None
+        return None, None
 
     final_prompt = _build_generation_prompt(image_decision)
     logger.debug("Cycle %s: image prompt: %s", cycle, final_prompt[:200])
@@ -157,13 +158,23 @@ def generate_image(cycle: int, image_decision: "ImageDecision") -> Optional[Path
             data_url: str = image_entry["image_url"]["url"]
         except (KeyError, IndexError, TypeError) as e:
             logger.warning("Cycle %s: unexpected image response structure: %s | %s", cycle, e, data)
-            return None
+            return None, None
+
+        # Extract usage for token tracking
+        usage_dict = None
+        u = data.get("usage")
+        if isinstance(u, dict):
+            usage_dict = {
+                "prompt_tokens": u.get("prompt_tokens", 0) or 0,
+                "completion_tokens": u.get("completion_tokens", 0) or 0,
+                "total_tokens": u.get("total_tokens", 0) or 0,
+            }
 
         # Parse data URI: "data:image/jpeg;base64,..."
         match = re.match(r"data:image/(\w+);base64,(.+)", data_url, re.DOTALL)
         if not match:
             logger.warning("Cycle %s: image URL is not a base64 data URI", cycle)
-            return None
+            return None, usage_dict
 
         ext = match.group(1).lower()
         image_bytes = base64.b64decode(match.group(2))
@@ -175,8 +186,8 @@ def generate_image(cycle: int, image_decision: "ImageDecision") -> Optional[Path
         filepath.write_bytes(image_bytes)
 
         logger.info("Cycle %s: image saved to %s", cycle, filepath)
-        return filepath
+        return filepath, usage_dict
 
     except Exception as e:
         logger.error("Cycle %s: image generation failed: %s", cycle, e)
-        return None
+        return None, None

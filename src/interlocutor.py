@@ -63,6 +63,16 @@ def main() -> None:
         action="store_true",
         help="Show current creator observations and exit.",
     )
+    parser.add_argument(
+        "--rejected",
+        action="store_true",
+        help="List rejected challenges (excludes already-promoted ones) and exit.",
+    )
+    parser.add_argument(
+        "--promote",
+        metavar="ID",
+        help="Promote a rejected challenge by ID into the pending queue.",
+    )
     args = parser.parse_args()
 
     if args.list:
@@ -92,6 +102,29 @@ def main() -> None:
         print("Creator observations (%d):" % len(obs))
         for o in obs:
             print("  [%s] %s" % (o.get("date", "?"), (o.get("text") or "")[:100]))
+        return
+
+    if args.rejected:
+        rejected = resistance.load_rejected_challenges()
+        reviewable = [r for r in rejected if r.get("status") != "promoted"]
+        print("Rejected challenges (%d, %d already promoted):" % (len(reviewable), len(rejected) - len(reviewable)))
+        for r in reviewable:
+            score = r.get("score")
+            score_str = str(score) if score is not None else "–"
+            reason = r.get("rejection_reason", "?")
+            text_preview = (r.get("raw_text") or "")[:100]
+            print("  [%s] score=%s reason=%s" % (r.get("id", "?"), score_str, reason))
+            print("        %s" % text_preview)
+        return
+
+    if args.promote:
+        result = resistance.promote_rejected_challenge(args.promote)
+        if result:
+            print("Promoted challenge %s into pending queue." % args.promote)
+            print("  Text: %s" % (result.get("text") or "")[:120])
+        else:
+            print("Could not promote %s. Check the ID exists and hasn't been promoted already." % args.promote, file=sys.stderr)
+            sys.exit(1)
         return
 
     text = " ".join(args.challenge).strip() if args.challenge else sys.stdin.read().strip()

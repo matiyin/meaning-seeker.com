@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — {{ site_name }}</title>
+<link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+<style>
+.admin-login{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem}
+.admin-login-wrap{background:var(--surface);border:0.0625rem solid var(--sep);border-radius:0.5rem;padding:2rem;min-width:18rem}
+.admin-login-wrap h1{font-size:var(--font-size-lg);margin-bottom:1.5rem}
+.admin-error{color:var(--explore,#ff375f);font-size:var(--font-size-sm);margin-bottom:1rem}
+.admin-form label{display:block;font-size:var(--font-size-sm);color:var(--text2);margin-bottom:0.25rem}
+.admin-form input{width:100%;padding:0.5rem 0.75rem;margin-bottom:1rem;background:var(--bg);border:0.0625rem solid var(--sep);border-radius:0.375rem;color:var(--text);font-size:var(--font-size-body)}
+.admin-form button{width:100%}
+</style>
+</head>
+<body class="admin-login">
+<div class="admin-login-wrap">
+  <h1>Admin</h1>
+  {% if error %}
+  <p class="admin-error">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="/admin/login" class="admin-form">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required autofocus>
+    <button type="submit" class="btn btn-primary">Log in</button>
+  </form>
+</div>
+</body>
+</html>

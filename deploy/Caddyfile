@@ -2,6 +2,15 @@
 # Copy to /etc/caddy/Caddyfile on the server
 
 meaning-seeker.com {
+	log {
+		output file /var/log/caddy/meaning-seeker-access.log {
+			roll_size 50mb
+			roll_keep 10
+			roll_keep_for 720h
+			roll_uncompressed
+		}
+		format json
+	}
 	header {
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY

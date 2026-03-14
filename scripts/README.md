@@ -1,5 +1,19 @@
 # Scripts
 
+## goaccess_report.sh
+
+Regenerates the GoAccess HTML report from Caddy access logs. Used by the admin dashboard for visitor stats.
+
+**Requirements**: GoAccess installed, Caddy configured to write access logs (see `deploy/Caddyfile`).
+
+**Cron** (e.g. daily at 2 AM):
+
+```
+0 2 * * * /path/to/meaning-seeker.com/scripts/goaccess_report.sh
+```
+
+**Env overrides**: `LOG_DIR` (default `/var/log/caddy`), `BOTS_FILE`, `REPORT_PATH`, `DATA_DIR`.
+
 ## sync_challenge_status_from_cycles.py
 
 Repairs `human_challenges.json` when a challenge was woven into a cycle but still shows as "Waiting" (e.g. due to a race or missed update). Scans `archive/cycles` for `injection.woven_challenge` and sets those challenges to `status=woven` with `linked_cycle`/`linked_journal`. Run on the server if the queue and journal get out of sync.

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Admin — {{ site_name }}{% endblock %}
+{% block description %}Admin dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="admin-header">
+    <h1>Admin Dashboard</h1>
+    <form method="post" action="/admin/logout" style="display:inline">
+      <button type="submit" class="btn btn-secondary">Log out</button>
+    </form>
+  </div>
+
+  <!-- Inquiry stats (like home) -->
+  <section class="admin-section">
+    <h2>Inquiry Stats</h2>
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-value">{{ cycles_complete }}</span>
+        <span class="stat-label">Cycles complete</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{{ active_tensions|length }}</span>
+        <span class="stat-label">Active tensions</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{{ active_commitments|length }}</span>
+        <span class="stat-label">Commitments held</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{{ "{:,}".format(total_tokens) }}</span>
+        <span class="stat-label">Tokens spent</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Token usage table -->
+  <section class="admin-section">
+    <h2>Token Usage by Cycle</h2>
+    <div class="admin-token-table-wrap">
+      <table class="admin-token-table">
+        <thead>
+          <tr>
+            <th>Cycle</th>
+            <th>Date</th>
+            <th>Mode</th>
+            <th>Model</th>
+            <th>Inquiry (p/c/t)</th>
+            <th>Monitoring (p/c/t)</th>
+            <th>Image (p/c/t)</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in token_rows %}
+          <tr{% if row.is_week_summary %} class="admin-week-summary"{% endif %}>
+            <td>{{ row.cycle if row.cycle is not none else '—' }}</td>
+            <td>{{ row.date }}</td>
+            <td>{{ row.mode or '—' }}</td>
+            <td>{{ row.model or '—' }}</td>
+            <td>{{ row.inquiry }}</td>
+            <td>{{ row.monitoring }}</td>
+            <td>{{ row.image }}</td>
+            <td>{{ row.total }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- GoAccess report -->
+  <section class="admin-section">
+    <h2>Visitor Stats (GoAccess)</h2>
+    <p class="admin-section-intro">Parsed from Caddy access logs. Regenerate daily via <code>scripts/goaccess_report.sh</code>.</p>
+    {% if has_goaccess_report %}
+    <div class="admin-stats-iframe-wrap">
+      <iframe src="/admin/stats" class="admin-stats-iframe" title="GoAccess report"></iframe>
+    </div>
+    <p class="admin-fallback"><a href="/admin/stats" target="_blank">Open report in new tab</a></p>
+    {% else %}
+    <p class="admin-empty">Report not yet generated. Run <code>scripts/goaccess_report.sh</code> (requires Caddy access logs and GoAccess).</p>
+    {% endif %}
+  </section>
+
+  <!-- Challenges by state -->
+  <section class="admin-section">
+    <h2>Challenges by State</h2>
+    {% for state_key, state_label in [('pending', 'Pending'), ('woven', 'Woven'), ('reviewed', 'Reviewed'), ('lapsed', 'Lapsed'), ('rejected', 'Rejected'), ('quarantine', 'Quarantine')] %}
+    {% set items = challenges_by_state.get(state_key, []) %}
+    <details class="admin-challenge-group"{% if items %} open{% endif %}>
+      <summary>{{ state_label }} ({{ items|length }})</summary>
+      {% if items %}
+      <ul class="admin-challenge-list">
+        {% for c in items %}
+        <li class="admin-challenge-item">
+          <span class="admin-challenge-id">{{ c.get('id', c.get('submission_id', '?')) }}</span>
+          <span class="admin-challenge-text">{{ (c.get('text') or c.get('raw_text') or c.get('text', ''))[:120] }}{% if (c.get('text') or c.get('raw_text') or '')|length > 120 %}…{% endif %}</span>
+          <span class="admin-challenge-meta">
+            {% if c.get('score') is not none %}score {{ c.score }}{% endif %}
+            {% if c.get('submitted_at') %} · {{ c.submitted_at[:10] }}{% endif %}
+            {% if c.get('source') %} · {{ c.source }}{% endif %}
+            {% if c.get('rejection_reason') %} · {{ c.rejection_reason }}{% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="admin-empty">No challenges in this state.</p>
+      {% endif %}
+    </details>
+    {% endfor %}
+  </section>
+</div>
+
+<style>
+.admin-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;flex-wrap:wrap;gap:1rem}
+.admin-header h1{font-size:var(--font-size-lg);margin:0}
+.admin-section{margin-bottom:3rem}
+.admin-section h2{font-size:var(--font-size-body);font-weight:600;margin-bottom:1rem;padding-bottom:0.5rem;border-bottom:0.0625rem solid var(--sep)}
+.admin-section-intro{font-size:var(--font-size-sm);color:var(--text2);margin-bottom:1rem}
+.admin-token-table-wrap{max-height:400px;overflow-y:auto;border:0.0625rem solid var(--sep);border-radius:0.5rem}
+.admin-token-table{width:100%;border-collapse:collapse;font-size:var(--font-size-sm)}
+.admin-token-table th,.admin-token-table td{padding:0.5rem 0.75rem;text-align:left;border-bottom:0.0625rem solid var(--sep)}
+.admin-token-table th{background:var(--surface);position:sticky;top:0;z-index:1}
+.admin-token-table tr.admin-week-summary{background:var(--tint);font-weight:500}
+.admin-stats-iframe-wrap{height:500px;border:0.0625rem solid var(--sep);border-radius:0.5rem;overflow:hidden}
+.admin-stats-iframe{width:100%;height:100%;border:none}
+.admin-fallback{font-size:var(--font-size-sm);color:var(--text2);margin-top:0.5rem}
+.admin-challenge-group{margin-bottom:1rem;border:0.0625rem solid var(--sep);border-radius:0.5rem;padding:0.75rem 1rem}
+.admin-challenge-group summary{cursor:pointer;font-weight:500}
+.admin-challenge-list{list-style:none;margin:0.5rem 0 0;padding:0}
+.admin-challenge-item{display:block;padding:0.5rem 0;border-bottom:0.0625rem solid var(--sep);font-size:var(--font-size-sm)}
+.admin-challenge-item:last-child{border-bottom:none}
+.admin-challenge-id{font-family:monospace;font-size:var(--font-size-xs);color:var(--text2);margin-right:0.5rem}
+.admin-challenge-text{color:var(--text)}
+.admin-challenge-meta{display:block;font-size:var(--font-size-xs);color:var(--text2);margin-top:0.25rem}
+.admin-empty{font-size:var(--font-size-sm);color:var(--text2);margin:0.5rem 0 0}
+</style>
+{% endblock %}

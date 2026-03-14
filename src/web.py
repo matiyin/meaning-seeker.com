@@ -28,8 +28,8 @@ from pathlib import Path
 from typing import Optional
 
 import markdown as md_lib
-from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -40,6 +40,8 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from . import resistance
 from .art_direction import ART_DIRECTION_PROMPT
 from .config import (
+    ADMIN_PASSWORD,
+    ADMIN_SALT,
     BLUESKY_PROFILE_URL,
     CYCLE_DAILY_AT_UTC_PARSED,
     CYCLE_INTERVAL_SECONDS,
@@ -49,6 +51,7 @@ from .config import (
     IMAGE_MODEL,
     INSTAGRAM_PROFILE_URL,
     MODEL_ID,
+    MONITOR_MODEL_ID,
     SITE_NAME,
     SITE_URL,
     SUBMISSION_MAX_LENGTH,
@@ -122,6 +125,154 @@ def _verify_csrf_token(token: str, max_age_seconds: int = 3600) -> bool:
         return False
 
 
+# ── Admin auth ─────────────────────────────────────────────────────────────────
+
+_admin_serializer: URLSafeTimedSerializer | None = None
+ADMIN_COOKIE = "admin_session"
+ADMIN_SESSION_MAX_AGE = 86400  # 24 hours
+
+
+def _get_admin_serializer() -> URLSafeTimedSerializer:
+    global _admin_serializer
+    if _admin_serializer is None:
+        _admin_serializer = URLSafeTimedSerializer(ADMIN_SALT, salt="admin")
+    return _admin_serializer
+
+
+def _verify_admin_password(password: str) -> bool:
+    """Verify admin password. Returns False if ADMIN_PASSWORD not set."""
+    if not ADMIN_PASSWORD:
+        return False
+    return secrets.compare_digest(password, ADMIN_PASSWORD)
+
+
+def _create_admin_session() -> str:
+    """Create a signed admin session token."""
+    payload = secrets.token_hex(16)
+    return _get_admin_serializer().dumps(payload)
+
+
+def _verify_admin_session(token: str) -> bool:
+    """Verify admin session cookie. Returns True if valid."""
+    if not token or not token.strip():
+        return False
+    try:
+        _get_admin_serializer().loads(token, max_age=ADMIN_SESSION_MAX_AGE)
+        return True
+    except BadSignature:
+        return False
+
+
+class _AdminAuthRequired(Exception):
+    """Raised when admin route requires authentication."""
+
+
+async def _require_admin(request: Request) -> None:
+    """Dependency: raise redirect to /admin if not logged in."""
+    token = request.cookies.get(ADMIN_COOKIE, "")
+    if not _verify_admin_session(token):
+        raise _AdminAuthRequired()
+
+
+def _fmt_tokens(n: int) -> str:
+    """Format token count for display (e.g. 15000 -> 15k)."""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.0f}k"
+    return str(n)
+
+
+def _usage_fmt(u: dict | None) -> str:
+    """Format usage dict as p/c/t."""
+    if not u:
+        return "—"
+    p = u.get("prompt_tokens", 0) or 0
+    c = u.get("completion_tokens", 0) or 0
+    t = u.get("total_tokens", 0) or 0
+    if t == 0:
+        return "—"
+    return f"{_fmt_tokens(p)}/{_fmt_tokens(c)}/{_fmt_tokens(t)}"
+
+
+def _build_admin_token_rows(cycle_records: list[dict]) -> list[dict]:
+    """Build token table rows: cycle rows + weekly summary rows after each weekly_review."""
+    if not cycle_records:
+        return []
+
+    # Index weekly_review cycles (newest first)
+    weekly_indices = [
+        i for i, r in enumerate(cycle_records)
+        if (r.get("injection") or {}).get("source") == "weekly_review"
+    ]
+
+    rows: list[dict] = []
+    for i, rec in enumerate(cycle_records):
+        usage = rec.get("usage") or {}
+        inv = usage.get("inquiry") or {}
+        mon = usage.get("monitoring") or {}
+        img = usage.get("image") or {}
+        total = usage.get("total_tokens", 0) or (
+            inv.get("total_tokens", 0) + mon.get("total_tokens", 0) + img.get("total_tokens", 0)
+        )
+
+        injection = rec.get("injection") or {}
+        mode = rec.get("mode") or (injection.get("source") or "explore")
+        if mode == "weekly_review":
+            mode = "weekly_review"
+        model_id = rec.get("model_id") or ""
+        if "/" in model_id:
+            model_id = model_id.split("/")[-1]
+
+        rows.append({
+            "cycle": rec.get("cycle"),
+            "date": (rec.get("timestamp") or "")[:10],
+            "mode": mode,
+            "model": model_id,
+            "inquiry": _usage_fmt(inv),
+            "monitoring": _usage_fmt(mon),
+            "image": _usage_fmt(img) if img.get("total_tokens") else "—",
+            "total": _fmt_tokens(total),
+            "is_week_summary": False,
+            "usage": usage,
+        })
+
+        # After each weekly_review, insert week summary
+        if injection.get("source") == "weekly_review":
+            prev_idx = next((j for j in weekly_indices if j > i), len(cycle_records))
+            if prev_idx <= i and prev_idx < len(cycle_records):
+                week_records = cycle_records[prev_idx : i + 1]
+            else:
+                week_records = [rec]
+
+            sum_inv = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            sum_mon = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            sum_img = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            for wr in week_records:
+                u = wr.get("usage") or {}
+                for acc, key in [(sum_inv, "inquiry"), (sum_mon, "monitoring"), (sum_img, "image")]:
+                    part = u.get(key) or {}
+                    acc["prompt_tokens"] += part.get("prompt_tokens", 0) or 0
+                    acc["completion_tokens"] += part.get("completion_tokens", 0) or 0
+                    acc["total_tokens"] += part.get("total_tokens", 0) or 0
+            week_total = sum_inv["total_tokens"] + sum_mon["total_tokens"] + sum_img["total_tokens"]
+            week_date = (rec.get("timestamp") or "")[:10]
+
+            rows.append({
+                "cycle": None,
+                "date": f"Week of {week_date}",
+                "mode": None,
+                "model": None,
+                "inquiry": _usage_fmt(sum_inv),
+                "monitoring": _usage_fmt(sum_mon),
+                "image": _usage_fmt(sum_img) if sum_img["total_tokens"] else "—",
+                "total": _fmt_tokens(week_total),
+                "is_week_summary": True,
+            })
+
+    return rows
+
+
 BASE = Path(__file__).parent.parent
 
 app = FastAPI(title="Meaning Seeker", docs_url=None, redoc_url=None)
@@ -129,6 +280,11 @@ app = FastAPI(title="Meaning Seeker", docs_url=None, redoc_url=None)
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(_AdminAuthRequired)
+async def _admin_auth_handler(request: Request, exc: _AdminAuthRequired):
+    return RedirectResponse(url="/admin", status_code=302)
 
 # Static files and templates
 _static_dir = BASE / "static"
@@ -858,6 +1014,119 @@ async def api_commitments():
 async def api_cycles():
     records = _load_recent_cycle_records(20)
     return JSONResponse(records)
+
+
+# ── Admin routes ───────────────────────────────────────────────────────────────
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request):
+    """Login page or redirect to dashboard if already logged in."""
+    token = request.cookies.get(ADMIN_COOKIE, "")
+    if _verify_admin_session(token):
+        return RedirectResponse(url="/admin/dashboard", status_code=302)
+    return templates.TemplateResponse("admin_login.html", {
+        "request": request,
+        "site_name": SITE_NAME,
+    })
+
+
+@app.post("/admin/login")
+@limiter.limit("5/minute")
+async def admin_login(request: Request, password: str = Form("")):
+    """Verify password, set session cookie, redirect to dashboard."""
+    if not _verify_admin_password(password.strip()):
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "site_name": SITE_NAME,
+            "error": "Invalid password.",
+        }, status_code=401)
+    session_token = _create_admin_session()
+    response = RedirectResponse(url="/admin/dashboard", status_code=302)
+    response.set_cookie(
+        key=ADMIN_COOKIE,
+        value=session_token,
+        max_age=ADMIN_SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+    )
+    return response
+
+
+@app.post("/admin/logout")
+async def admin_logout(request: Request):
+    """Clear session, redirect to /admin."""
+    response = RedirectResponse(url="/admin", status_code=302)
+    response.delete_cookie(ADMIN_COOKIE)
+    return response
+
+
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+async def admin_dashboard(request: Request, _: None = Depends(_require_admin)):
+    """Main dashboard: inquiry stats, token table, GoAccess iframe, challenges."""
+    state = _load_state()
+    journals = _list_journals()
+    tensions_raw = _load_json(DATA_DIR / "tensions.json", [])
+    active_tensions = [t for t in tensions_raw if t.get("status") == "active"]
+    commitments_raw = _load_json(DATA_DIR / "commitments.json", [])
+    active_commitments = [c for c in commitments_raw if c.get("status") == "active"]
+
+    total_tokens = 0
+    cycle_records = _load_recent_cycle_records(9999)
+    for r in cycle_records:
+        total_tokens += (r.get("usage") or {}).get("total_tokens", 0)
+
+    # Build token table rows (cycles + weekly summary rows)
+    token_rows = _build_admin_token_rows(cycle_records)
+
+    # Challenges by state
+    challenges = resistance.load_human_challenges()
+    rejected = resistance.load_rejected_challenges()
+    quarantine_dir = DATA_DIR / "injections" / "quarantine"
+    quarantine_entries = []
+    if quarantine_dir.exists():
+        for path in quarantine_dir.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if data.get("status") == "pending":
+                    quarantine_entries.append(data)
+            except (json.JSONDecodeError, OSError):
+                continue
+    quarantine_entries.sort(key=lambda r: r.get("timestamp", ""), reverse=True)
+
+    challenges_by_state = {
+        "pending": [c for c in challenges if c.get("status") == "pending"],
+        "woven": [c for c in challenges if c.get("status") == "woven"],
+        "reviewed": [c for c in challenges if c.get("status") == "reviewed"],
+        "lapsed": [c for c in challenges if c.get("status") == "lapsed"],
+        "rejected": rejected,
+        "quarantine": quarantine_entries,
+    }
+
+    has_goaccess_report = (DATA_DIR / "admin" / "goaccess_report.html").exists()
+
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "site_name": SITE_NAME,
+        "cycles_complete": len(journals),
+        "active_tensions": active_tensions,
+        "active_commitments": active_commitments,
+        "total_tokens": total_tokens,
+        "token_rows": token_rows,
+        "challenges_by_state": challenges_by_state,
+        "monitor_model_id": MONITOR_MODEL_ID,
+        "has_goaccess_report": has_goaccess_report,
+    })
+
+
+@app.get("/admin/stats")
+async def admin_stats(request: Request, _: None = Depends(_require_admin)):
+    """Serve GoAccess HTML report (or placeholder if not yet generated)."""
+    report_path = DATA_DIR / "admin" / "goaccess_report.html"
+    if report_path.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(str(report_path), media_type="text/html")
+    raise HTTPException(404, detail="GoAccess report not yet generated. Run scripts/goaccess_report.sh.")
 
 
 # ── Submission endpoint (Task 3) ───────────────────────────────────────────────

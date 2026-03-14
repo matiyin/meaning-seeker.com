@@ -61,14 +61,17 @@ def _get_client() -> OpenAI:
 
 
 def _usage_from_response(r) -> dict:
-    """Extract prompt_tokens, completion_tokens, total_tokens from API response. Returns zero dict if missing."""
+    """Extract prompt_tokens, completion_tokens, total_tokens, cost from API response. Returns zero dict if missing."""
     u = getattr(r, "usage", None)
     if u is None:
-        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cost": 0.0}
+    raw_cost = getattr(u, "cost", None)
+    cost = float(raw_cost) if raw_cost is not None else 0.0
     return {
         "prompt_tokens": getattr(u, "prompt_tokens", 0) or 0,
         "completion_tokens": getattr(u, "completion_tokens", 0) or 0,
         "total_tokens": getattr(u, "total_tokens", 0) or 0,
+        "cost": cost,
     }
 
 

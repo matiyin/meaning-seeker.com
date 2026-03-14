@@ -4,7 +4,7 @@
 {% block description %}Admin dashboard{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container admin-dashboard">
   <div class="admin-header">
     <h1>Admin Dashboard</h1>
     <form method="post" action="/admin/logout" style="display:inline">
@@ -46,9 +46,9 @@
             <th>Date</th>
             <th>Mode</th>
             <th>Model</th>
-            <th>Inquiry (p/c/t)</th>
-            <th>Monitoring (p/c/t)</th>
-            <th>Image (p/c/t)</th>
+            <th title="Prompt tokens / Completion tokens / Total tokens">Inquiry (p/c/t)</th>
+            <th title="Prompt tokens / Completion tokens / Total tokens">Monitoring (p/c/t)</th>
+            <th title="Prompt tokens / Completion tokens / Total tokens (image model when present)">Image (p/c/t)</th>
             <th>Total</th>
           </tr>
         </thead>
@@ -96,7 +96,7 @@
         {% for c in items %}
         <li class="admin-challenge-item">
           <span class="admin-challenge-id">{{ c.get('id', c.get('submission_id', '?')) }}</span>
-          <span class="admin-challenge-text">{{ (c.get('text') or c.get('raw_text') or c.get('text', ''))[:120] }}{% if (c.get('text') or c.get('raw_text') or '')|length > 120 %}…{% endif %}</span>
+          <span class="admin-challenge-text">{{ c.get('text') or c.get('raw_text') or '' }}</span>
           <span class="admin-challenge-meta">
             {% if c.get('score') is not none %}score {{ c.score }}{% endif %}
             {% if c.get('submitted_at') %} · {{ c.submitted_at[:10] }}{% endif %}
@@ -115,6 +115,7 @@
 </div>
 
 <style>
+.admin-dashboard{margin-top:2rem}
 .admin-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;flex-wrap:wrap;gap:1rem}
 .admin-header h1{font-size:var(--font-size-lg);margin:0}
 .admin-section{margin-bottom:3rem}

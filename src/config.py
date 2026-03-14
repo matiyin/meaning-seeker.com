@@ -125,6 +125,16 @@ FORCE_IMAGE: bool = os.getenv("FORCE_IMAGE", "").lower() in ("1", "true", "yes")
 # Phase C: Social moderation (local-first, Haiku only for edge cases)
 SOCIAL_MODERATION_ENABLED: bool = os.getenv("SOCIAL_MODERATION_ENABLED", "true").lower() == "true"
 
+# Running costs dashboard (About page)
+# VPS monthly estimate in EUR (e.g. Hetzner CX23 ~€3.49). No Hetzner billing API; manual estimate.
+VPS_MONTHLY_ESTIMATE_EUR: float | None = None
+_raw = os.getenv("VPS_MONTHLY_ESTIMATE_EUR", "").strip()
+if _raw:
+    try:
+        VPS_MONTHLY_ESTIMATE_EUR = float(_raw)
+    except ValueError:
+        pass
+
 # Challenge System v2: weekly review and organic weaving
 MAX_REVIEW_CHALLENGES: int = int(os.getenv("MAX_REVIEW_CHALLENGES", "10"))
 ORGANIC_WEAVE_THRESHOLD: float = float(os.getenv("ORGANIC_WEAVE_THRESHOLD", "0.3"))

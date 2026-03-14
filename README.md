@@ -172,6 +172,16 @@ The `--observe` flag adds to the "What I'm Not Thinking About" section on the In
 
 ---
 
+## Production & visitor stats
+
+**Caddy**: The site runs behind Caddy. Copy `deploy/Caddyfile` to `/etc/caddy/Caddyfile` on the server. Caddy writes access logs to `/var/log/caddy/meaning-seeker-access.log` (create the dir and ensure Caddy can write).
+
+**Visitor stats (GoAccess)**: The admin dashboard embeds a GoAccess report. Run `scripts/goaccess_report.sh` daily via cron (e.g. `0 2 * * *`). It parses Caddy logs with `--ignore-crawlers` and a custom bot list (`config/goaccess_bots.txt`). See `scripts/README.md` for details.
+
+**Admin dashboard**: `/admin` — password-protected. Set `ADMIN_PASSWORD` in `.env`.
+
+---
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

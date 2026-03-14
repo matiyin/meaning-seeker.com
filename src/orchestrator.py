@@ -35,13 +35,14 @@ def _seconds_until_next_daily_run() -> int | None:
 
 
 def _sum_usage(*usage_dicts: dict | None) -> dict:
-    """Sum prompt_tokens, completion_tokens, total_tokens from one or more usage dicts. Missing/None treated as 0."""
-    out = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    """Sum prompt_tokens, completion_tokens, total_tokens, cost from one or more usage dicts. Missing/None treated as 0."""
+    out = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cost": 0.0}
     for u in usage_dicts:
         if u:
             out["prompt_tokens"] += u.get("prompt_tokens", 0)
             out["completion_tokens"] += u.get("completion_tokens", 0)
             out["total_tokens"] += u.get("total_tokens", 0)
+            out["cost"] += float(u.get("cost", 0) or 0)
     return out
 
 
@@ -291,14 +292,19 @@ def run_cycle() -> bool:
     memory.save_tensions(tensions)
     memory.save_commitments(commitments)
 
-    usage_inquiry_norm = usage_inquiry or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-    usage_monitoring_norm = usage_monitoring or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    usage_inquiry_norm = usage_inquiry or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cost": 0.0}
+    usage_monitoring_norm = usage_monitoring or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cost": 0.0}
+    inquiry_cost = float(usage_inquiry_norm.get("cost", 0) or 0)
+    monitoring_cost = float(usage_monitoring_norm.get("cost", 0) or 0)
     usage = {
         "inquiry": usage_inquiry_norm,
         "monitoring": usage_monitoring_norm,
         "total_prompt_tokens": usage_inquiry_norm["prompt_tokens"] + usage_monitoring_norm["prompt_tokens"],
         "total_completion_tokens": usage_inquiry_norm["completion_tokens"] + usage_monitoring_norm["completion_tokens"],
         "total_tokens": usage_inquiry_norm["total_tokens"] + usage_monitoring_norm["total_tokens"],
+        "inquiry_cost": inquiry_cost,
+        "monitoring_cost": monitoring_cost,
+        "total_cost": inquiry_cost + monitoring_cost,
     }
     # ── Phase C: post-cycle steps ─────────────────────────────────────────────
     # 3. Image generation (before journal render so image reference can be embedded)
@@ -324,6 +330,9 @@ def run_cycle() -> bool:
             usage.get("total_tokens", 0)
             + (usage_image.get("total_tokens", 0) or 0)
         )
+        image_cost = float(usage_image.get("cost", 0) or 0)
+        usage["image_cost"] = image_cost
+        usage["total_cost"] = usage.get("total_cost", 0) + image_cost
 
     journal_mode = "weekly_review" if injection.source == "weekly_review" else output.mode
     woven_challenge = injection.woven_challenge if injection.woven_challenge else None

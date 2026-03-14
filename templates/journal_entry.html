@@ -15,6 +15,7 @@
     </span>
       {% if meta.date %}<span>{{ meta.date }}</span>{% endif %}
       {% if meta.tokens_total %}<span>{{ '{:,}'.format(meta.tokens_total) }} tokens</span>{% endif %}
+      {% if cycle_record and cycle_record.get('model_id') %}<span>{{ (cycle_record.model_id or '').split('/')[-1] }}</span>{% endif %}
     </div>
     <h1 class="entry-title">{% if meta.title %}{{ meta.title }}{% else %}Cycle {{ cycle }}{% endif %}</h1>
   </div>

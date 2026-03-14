@@ -160,15 +160,27 @@ def generate_image(cycle: int, image_decision: "ImageDecision") -> tuple[Optiona
             logger.warning("Cycle %s: unexpected image response structure: %s | %s", cycle, e, data)
             return None, None
 
-        # Extract usage for token tracking
+        # Extract usage for token tracking and cost
+        # OpenRouter/OpenAI use prompt_tokens/completion_tokens; some providers use input_tokens/output_tokens
         usage_dict = None
-        u = data.get("usage")
+        u = data.get("usage") or (data.get("choices") or [{}])[0].get("usage")
         if isinstance(u, dict):
-            usage_dict = {
-                "prompt_tokens": u.get("prompt_tokens", 0) or 0,
-                "completion_tokens": u.get("completion_tokens", 0) or 0,
-                "total_tokens": u.get("total_tokens", 0) or 0,
-            }
+            prompt = u.get("prompt_tokens") or u.get("input_tokens", 0) or 0
+            completion = u.get("completion_tokens") or u.get("output_tokens", 0) or 0
+            total = u.get("total_tokens", 0) or (prompt + completion)
+            raw_cost = u.get("cost")
+            cost = float(raw_cost) if raw_cost is not None else 0.0
+            if prompt or completion or total or cost:
+                usage_dict = {
+                    "prompt_tokens": prompt,
+                    "completion_tokens": completion,
+                    "total_tokens": total,
+                    "cost": cost,
+                }
+            else:
+                usage_dict = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cost": 0.0}
+        else:
+            logger.debug("Cycle %s: image API response has no usage field (keys: %s)", cycle, list(data.keys()) if isinstance(data, dict) else "?")
 
         # Parse data URI: "data:image/jpeg;base64,..."
         match = re.match(r"data:image/(\w+);base64,(.+)", data_url, re.DOTALL)

@@ -58,6 +58,7 @@ from .config import (
     SUBMISSION_MIN_LENGTH,
     SUBMISSION_RATE_LIMIT,
     THREADS_PROFILE_URL,
+    VPS_MONTHLY_ESTIMATE_EUR,
     X_PROFILE_URL,
 )
 
@@ -195,16 +196,33 @@ def _usage_fmt(u: dict | None) -> str:
     return f"{_fmt_tokens(p)}/{_fmt_tokens(c)}/{_fmt_tokens(t)}"
 
 
+def _date_dmy(iso_date: str) -> str:
+    """Convert YYYY-MM-DD to DD-MM-YYYY."""
+    if not iso_date or len(iso_date) < 10:
+        return iso_date
+    y, m, d = iso_date[:10].split("-")
+    return f"{d}-{m}-{y}"
+
+
+def _week_monday_sunday(sunday_iso: str) -> tuple[str, str]:
+    """Given Sunday YYYY-MM-DD, return (monday_iso, sunday_iso) for that week."""
+    if not sunday_iso or len(sunday_iso) < 10:
+        return ("", sunday_iso)
+    try:
+        dt = datetime.strptime(sunday_iso[:10], "%Y-%m-%d")
+        monday = dt - timedelta(days=6)
+        return (monday.strftime("%Y-%m-%d"), sunday_iso[:10])
+    except (ValueError, TypeError):
+        return ("", sunday_iso[:10])
+
+
 def _build_admin_token_rows(cycle_records: list[dict]) -> list[dict]:
-    """Build token table rows: cycle rows + weekly summary rows after each weekly_review."""
+    """Build token table rows: cycle rows + weekly summary rows after each weekly_review.
+    Weekly summary appears after the Sunday weekly_review and sums all cycles whose date
+    falls within that week (Monday through Sunday).
+    """
     if not cycle_records:
         return []
-
-    # Index weekly_review cycles (newest first)
-    weekly_indices = [
-        i for i, r in enumerate(cycle_records)
-        if (r.get("injection") or {}).get("source") == "weekly_review"
-    ]
 
     rows: list[dict] = []
     for i, rec in enumerate(cycle_records):
@@ -223,27 +241,38 @@ def _build_admin_token_rows(cycle_records: list[dict]) -> list[dict]:
         model_id = rec.get("model_id") or ""
         if "/" in model_id:
             model_id = model_id.split("/")[-1]
+        image_model = rec.get("image_model") or ""
+        if "/" in image_model:
+            image_model = image_model.split("/")[-1]
+
+        # Image: show tokens when present; show image_model when an image was generated (even if usage not recorded)
+        img_tokens = _usage_fmt(img) if (img.get("total_tokens") or img.get("prompt_tokens")) else "—"
+        if image_model:
+            img_display = f"{img_tokens} ({image_model})" if img_tokens != "—" else f"— ({image_model})"
+        else:
+            img_display = img_tokens
 
         rows.append({
             "cycle": rec.get("cycle"),
-            "date": (rec.get("timestamp") or "")[:10],
+            "date": _date_dmy((rec.get("timestamp") or "")[:10]),
             "mode": mode,
             "model": model_id,
             "inquiry": _usage_fmt(inv),
             "monitoring": _usage_fmt(mon),
-            "image": _usage_fmt(img) if img.get("total_tokens") else "—",
+            "image": img_display,
             "total": _fmt_tokens(total),
             "is_week_summary": False,
             "usage": usage,
         })
 
-        # After each weekly_review, insert week summary
+        # After each weekly_review (Sunday), insert week summary for that week
         if injection.get("source") == "weekly_review":
-            prev_idx = next((j for j in weekly_indices if j > i), len(cycle_records))
-            if prev_idx <= i and prev_idx < len(cycle_records):
-                week_records = cycle_records[prev_idx : i + 1]
-            else:
-                week_records = [rec]
+            sunday_iso = (rec.get("timestamp") or "")[:10]
+            monday_iso, sunday_iso = _week_monday_sunday(sunday_iso)
+            week_records = [
+                r for r in cycle_records
+                if monday_iso <= (r.get("timestamp") or "")[:10] <= sunday_iso
+            ]
 
             sum_inv = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
             sum_mon = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
@@ -256,11 +285,11 @@ def _build_admin_token_rows(cycle_records: list[dict]) -> list[dict]:
                     acc["completion_tokens"] += part.get("completion_tokens", 0) or 0
                     acc["total_tokens"] += part.get("total_tokens", 0) or 0
             week_total = sum_inv["total_tokens"] + sum_mon["total_tokens"] + sum_img["total_tokens"]
-            week_date = (rec.get("timestamp") or "")[:10]
+            week_date = _date_dmy(sunday_iso)
 
             rows.append({
                 "cycle": None,
-                "date": f"Week of {week_date}",
+                "date": f"Week ending {week_date}",
                 "mode": None,
                 "model": None,
                 "inquiry": _usage_fmt(sum_inv),
@@ -858,12 +887,36 @@ async def about_page(request: Request):
         social_profile_links.append({"name": "Threads", "url": THREADS_PROFILE_URL.strip()})
     if INSTAGRAM_PROFILE_URL.strip():
         social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
+
+    # Running costs: cumulative LLM (OpenRouter) from cycle records; VPS from config estimate
+    llm_cost_total = 0.0
+    first_cycle_ts: str | None = None
+    for r in _load_recent_cycle_records(9999):
+        llm_cost_total += float((r.get("usage") or {}).get("total_cost", 0) or 0)
+        ts = (r.get("timestamp") or "")[:10]
+        if ts and (first_cycle_ts is None or ts < first_cycle_ts):
+            first_cycle_ts = ts
+
+    vps_monthly_eur = VPS_MONTHLY_ESTIMATE_EUR
+    vps_cumulative_eur: float | None = None
+    if vps_monthly_eur is not None and vps_monthly_eur > 0 and first_cycle_ts:
+        try:
+            start = datetime.strptime(first_cycle_ts, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            months = max(0, (now - start).days / 30.0)
+            vps_cumulative_eur = round(vps_monthly_eur * months, 2)
+        except ValueError:
+            pass
+
     return templates.TemplateResponse("about.html", {
         "request": request,
         "active_nav": "about",
         "social_profile_links": social_profile_links,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
+        "llm_cost_total": llm_cost_total,
+        "vps_monthly_eur": vps_monthly_eur,
+        "vps_cumulative_eur": vps_cumulative_eur,
     })
 
 

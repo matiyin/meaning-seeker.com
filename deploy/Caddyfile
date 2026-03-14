@@ -11,12 +11,27 @@ meaning-seeker.com {
 		}
 		format json
 	}
-	header {
-		X-Content-Type-Options nosniff
-		X-Frame-Options DENY
-		Referrer-Policy strict-origin-when-cross-origin
-		Permissions-Policy interest-cohort=()
-		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	# Admin routes: SAMEORIGIN so /admin/dashboard can embed /admin/stats (GoAccess iframe)
+	@admin path /admin*
+	handle @admin {
+		header {
+			X-Content-Type-Options nosniff
+			X-Frame-Options SAMEORIGIN
+			Referrer-Policy strict-origin-when-cross-origin
+			Permissions-Policy interest-cohort=()
+			Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		}
+		reverse_proxy localhost:3000
 	}
-	reverse_proxy localhost:3000
+	# Public routes: DENY to prevent clickjacking
+	handle {
+		header {
+			X-Content-Type-Options nosniff
+			X-Frame-Options DENY
+			Referrer-Policy strict-origin-when-cross-origin
+			Permissions-Policy interest-cohort=()
+			Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		}
+		reverse_proxy localhost:3000
+	}
 }

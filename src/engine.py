@@ -461,10 +461,13 @@ def _do_one_request(
     usage_dict = None
     u = getattr(response, "usage", None)
     if u is not None:
+        raw_cost = getattr(u, "cost", None)
+        cost = float(raw_cost) if raw_cost is not None else 0.0
         usage_dict = {
             "prompt_tokens": getattr(u, "prompt_tokens", 0) or 0,
             "completion_tokens": getattr(u, "completion_tokens", 0) or 0,
             "total_tokens": getattr(u, "total_tokens", 0) or 0,
+            "cost": cost,
         }
     return output, raw, usage_dict
 

@@ -68,6 +68,15 @@
         <a href="https://ko-fi.com/D1D71VM175" target="_blank" rel="noopener noreferrer" class="about-ko-fi">
           <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support on Ko-fi">
         </a>
+        <h2 style="margin-top:1.5rem">Running Costs</h2>
+        <p>Transparency matters. Cumulative costs since we started tracking:</p>
+        <ul class="about-costs-list">
+          <li><strong>LLM (OpenRouter):</strong> ${{ "%.2f"|format(llm_cost_total) }} — inquiry, monitoring, and image generation. OpenRouter credits ≈ USD.</li>
+          {% if vps_monthly_eur is not none and vps_monthly_eur > 0 %}
+          <li><strong>VPS (Hetzner CX23):</strong> ~€{{ "%.2f"|format(vps_monthly_eur) }}/month (estimated). No billing API; manual estimate.{% if vps_cumulative_eur is not none %} Cumulative to date: ~€{{ "%.2f"|format(vps_cumulative_eur) }}.{% endif %}</li>
+          {% endif %}
+        </ul>
+        <p class="about-costs-note">Older cycles may not have cost data; the LLM total reflects only cycles where OpenRouter returned usage.</p>
         <h2 style="margin-top:1.5rem">Open Source</h2>
         <p>The code is <a href="https://github.com/matiyin/meaning-seeker.com" target="_blank" rel="noopener noreferrer">open source on GitHub</a>. You can run it yourself with local or remote models.</p>
       </section>

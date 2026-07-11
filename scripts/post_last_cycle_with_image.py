@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Post the most recent cycle that has an image to configured social platforms.
-Uses that cycle's social_output text and image (Bluesky/Threads get text; Instagram gets text + image).
+Uses that cycle's social_output text and image (X/Bluesky/Instagram get image when present).
 
 Usage (from repo root):
   .venv/bin/python scripts/post_last_cycle_with_image.py

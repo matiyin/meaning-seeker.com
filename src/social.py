@@ -157,9 +157,15 @@ def _bluesky_link_facets(text: str, journal_url: str):
     ]
 
 
-def _post_x(text: str, cycle: int = 0) -> dict:
+def _post_x(text: str, cycle: int = 0, image_path: Optional[Path] = None) -> dict:
     try:
         import tweepy
+        auth = tweepy.OAuth1UserHandler(
+            X_API_KEY,
+            X_API_SECRET,
+            X_ACCESS_TOKEN,
+            X_ACCESS_SECRET,
+        )
         client = tweepy.Client(
             consumer_key=X_API_KEY,
             consumer_secret=X_API_SECRET,
@@ -167,7 +173,14 @@ def _post_x(text: str, cycle: int = 0) -> dict:
             access_token_secret=X_ACCESS_SECRET,
         )
         formatted = _format_post(text, cycle=cycle, limit=280)
-        response = client.create_tweet(text=formatted)
+
+        media_ids = None
+        if image_path and image_path.exists():
+            media = tweepy.API(auth).media_upload(filename=str(image_path))
+            media_ids = [media.media_id_string]
+            logger.info("X: uploaded media %s", media.media_id_string)
+
+        response = client.create_tweet(text=formatted, media_ids=media_ids)
         tweet_id = response.data["id"] if response.data else None
         logger.info("X: posted tweet %s", tweet_id)
         return {"ok": True, "tweet_id": tweet_id}
@@ -344,7 +357,7 @@ def post_social(
 
     Args:
         text: The philosophical text to post.
-        image_path: Optional path to a generated image (used for Instagram).
+        image_path: Optional path to a generated image (used for Bluesky, Instagram, X).
         cycle: Cycle number for logging.
         title: Cycle title (same as gallery caption under image); used for image alt text.
     """
@@ -362,7 +375,7 @@ def post_social(
             return {"blocked": reason}
 
     if X_API_KEY and X_ACCESS_TOKEN:
-        results["x"] = _post_x(text, cycle=cycle)
+        results["x"] = _post_x(text, cycle=cycle, image_path=image_path)
 
     if BLUESKY_HANDLE and BLUESKY_PASSWORD:
         results["bluesky"] = _post_bluesky(

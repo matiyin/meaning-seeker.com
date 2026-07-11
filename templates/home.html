@@ -36,6 +36,9 @@
     <a href="/manuscript" class="manuscript-excerpt-card">
       <div class="thesis-block markdown-body">{{ manuscript_excerpt_html|safe }}</div>
       <p class="thesis-attribution">Read the full manuscript →</p>
+      {% if manuscript_last_updated %}
+      <p class="manuscript-meta">Last rewritten {{ manuscript_last_updated }}{% if manuscript_last_cycle %} · cycle {{ manuscript_last_cycle }}{% endif %}</p>
+      {% endif %}
     </a>
   </div>
   {% endif %}

@@ -260,6 +260,7 @@ def build_user_message(
     injection: Optional[InjectionRecord] = None,
     silence_context: Optional[str] = None,
     cycles_since_last_image: int = 999,
+    manuscript_context: Optional[str] = None,
 ) -> str:
     from .models import MonitoringResult
 
@@ -275,6 +276,9 @@ def build_user_message(
             "The manuscript is the living document of your current best understanding -- "
             "you may write one this cycle if understanding begins to form.*"
         )
+
+    if manuscript_context and manuscript_context.strip():
+        blocks.append("## Manuscript Context\n\n" + manuscript_context.strip())
 
     # Block 3: Transition log (2000-token budget, newest first)
     blocks.append(f"## Recent Transitions\n\n{_render_transitions(transitions)}")
@@ -515,6 +519,7 @@ def run(
     injection: Optional[InjectionRecord] = None,
     silence_context: Optional[str] = None,
     cycles_since_last_image: int = 999,
+    manuscript_context: Optional[str] = None,
 ) -> tuple[CycleOutput, str, str, str, str, dict | None]:
     """Returns (output, system_prompt, user_message, raw_response, prompt_hash, usage_inquiry)."""
     system_prompt = get_system_prompt()
@@ -530,6 +535,7 @@ def run(
         injection=injection,
         silence_context=silence_context,
         cycles_since_last_image=cycles_since_last_image,
+        manuscript_context=manuscript_context,
     )
     output, raw_response, usage_inquiry = call_api(system_prompt, user_message, cycle)
     prompt_hash = "sha256:" + hashlib.sha256(

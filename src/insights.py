@@ -22,6 +22,7 @@ from .models import Commitment, CycleOutput, Tension
 logger = logging.getLogger(__name__)
 
 PARADIGM_SHIFTS_PATH = DATA_DIR / "paradigm_shifts.json"
+PENDING_MANUSCRIPT_REASSESSMENT_PATH = DATA_DIR / "injections" / "pending_manuscript_reassessment.json"
 
 # Thresholds for paradigm shift detection
 MANUSCRIPT_REWRITE_GAP = 10   # cycles without a manuscript update → rewrite is significant
@@ -53,8 +54,8 @@ def _append_paradigm_shifts(new_shifts: list[dict]) -> None:
     )
 
 
-def _last_manuscript_update_cycle(current_cycle: int) -> Optional[int]:
-    """Find the most recent cycle before current_cycle where manuscript_update was non-None."""
+def last_manuscript_update_cycle(current_cycle: int) -> Optional[int]:
+    """Find the most recent cycle before current_cycle where the manuscript was rewritten."""
     cycles_dir = DATA_DIR / "archive" / "cycles"
     if not cycles_dir.exists():
         return None
@@ -65,11 +66,46 @@ def _last_manuscript_update_cycle(current_cycle: int) -> Optional[int]:
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            if data.get("manuscript_update"):
+            if data.get("manuscript_updated"):
                 return c
         except (json.JSONDecodeError, OSError):
             continue
     return None
+
+
+def cycles_since_manuscript_update(current_cycle: int) -> int:
+    """Cycles since the last manuscript rewrite. Returns 999 if never rewritten."""
+    last = last_manuscript_update_cycle(current_cycle)
+    return (current_cycle - last) if last is not None else 999
+
+
+def set_pending_manuscript_reassessment(text: str) -> None:
+    """Persist a note asking the next cycle to reconsider rewriting the manuscript."""
+    PENDING_MANUSCRIPT_REASSESSMENT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PENDING_MANUSCRIPT_REASSESSMENT_PATH.write_text(
+        json.dumps({"text": text}, ensure_ascii=False), encoding="utf-8"
+    )
+    logger.info("Manuscript reassessment nudge set for next cycle")
+
+
+def get_pending_manuscript_reassessment() -> Optional[str]:
+    """Return pending manuscript reassessment text if any; does not clear it."""
+    if not PENDING_MANUSCRIPT_REASSESSMENT_PATH.exists():
+        return None
+    try:
+        data = json.loads(PENDING_MANUSCRIPT_REASSESSMENT_PATH.read_text(encoding="utf-8"))
+        return (data.get("text") or "").strip() or None
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def clear_pending_manuscript_reassessment() -> None:
+    """Clear the pending manuscript reassessment (call when it was consumed by a cycle)."""
+    if PENDING_MANUSCRIPT_REASSESSMENT_PATH.exists():
+        try:
+            PENDING_MANUSCRIPT_REASSESSMENT_PATH.unlink()
+        except OSError:
+            pass
 
 
 def detect_paradigm_shifts(
@@ -97,7 +133,7 @@ def detect_paradigm_shifts(
 
     # 1. Manuscript rewrite after 10+ cycles without one
     if output.manuscript_update:
-        last = _last_manuscript_update_cycle(cycle)
+        last = last_manuscript_update_cycle(cycle)
         gap = (cycle - last) if last is not None else cycle
         if gap >= MANUSCRIPT_REWRITE_GAP:
             shifts.append({

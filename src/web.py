@@ -39,6 +39,8 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from . import resistance
 from .art_direction import ART_DIRECTION_PROMPT
+from .health import cycle_health, web_health
+from .observability import init_observability
 from .config import (
     ADMIN_PASSWORD,
     ADMIN_SALT,
@@ -304,6 +306,8 @@ def _build_admin_token_rows(cycle_records: list[dict]) -> list[dict]:
 
 BASE = Path(__file__).parent.parent
 
+init_observability(service="web")
+
 app = FastAPI(title="Meaning Seeker", docs_url=None, redoc_url=None)
 
 limiter = Limiter(key_func=get_remote_address)
@@ -492,6 +496,31 @@ def _load_cycle_record(cycle: int) -> dict:
     return _load_json(path, {})
 
 
+def _manuscript_revisions() -> list[dict]:
+    """All cycles that rewrote the manuscript, newest first.
+    Each: {"cycle": int, "date": "27 May 2026", "why": str}.
+    """
+    revisions = []
+    for r in _load_recent_cycle_records(9999):
+        if not r.get("manuscript_updated"):
+            continue
+        cycle_num = r.get("cycle")
+        ts = (r.get("timestamp") or "")[:10]
+        date_str = ""
+        if ts:
+            try:
+                dt = datetime.strptime(ts, "%Y-%m-%d")
+                date_str = dt.strftime("%d %b %Y").lstrip("0")
+            except ValueError:
+                date_str = ts
+        # "why": prefer transition_entry (written when something shifted), fallback to summary
+        why = (r.get("transition_entry") or "").strip() or (r.get("summary") or "").strip()
+        if len(why) > 220:
+            why = why[:217].rsplit(" ", 1)[0] + "…"
+        revisions.append({"cycle": cycle_num, "date": date_str, "why": why})
+    return revisions  # newest first (records come newest-first)
+
+
 def _load_recent_cycle_records(n: int = 20) -> list[dict]:
     cycles_dir = DATA_DIR / "archive" / "cycles"
     if not cycles_dir.exists():
@@ -599,6 +628,19 @@ def _md_to_inline_html(text: str) -> str:
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+@app.get("/health")
+async def health():
+    """Liveness probe — use for GlitchTip uptime monitor (web service)."""
+    return JSONResponse(web_health())
+
+
+@app.get("/health/cycle")
+async def health_cycle():
+    """Cycle freshness probe — returns 503 if no recent inquiry cycle completed."""
+    payload, status_code = cycle_health()
+    return JSONResponse(payload, status_code=status_code)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     state = _load_state()
@@ -643,6 +685,10 @@ async def home(request: Request):
 
     manuscript_excerpt_html = _render_md(manuscript_excerpt) if manuscript_excerpt else ""
 
+    manuscript_revisions = _manuscript_revisions()
+    manuscript_last_updated = manuscript_revisions[0]["date"] if manuscript_revisions else None
+    manuscript_last_cycle = manuscript_revisions[0]["cycle"] if manuscript_revisions else None
+
     social_profile_links = []
     if X_PROFILE_URL.strip():
         social_profile_links.append({"name": "X", "url": X_PROFILE_URL.strip()})
@@ -679,6 +725,8 @@ async def home(request: Request):
         "slider_entries": slider_entries,
         "manuscript_excerpt": manuscript_excerpt,
         "manuscript_excerpt_html": manuscript_excerpt_html,
+        "manuscript_last_updated": manuscript_last_updated,
+        "manuscript_last_cycle": manuscript_last_cycle,
         "social_profile_links": social_profile_links,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
@@ -819,8 +867,11 @@ async def manuscript_page(request: Request):
     manuscript_path = DATA_DIR / "manuscript.md"
     text = manuscript_path.read_text(encoding="utf-8").strip() if manuscript_path.exists() else ""
     body_html = _render_md(text) if text else ""
-    last_updated = None
-    if manuscript_path.exists():
+    revisions = _manuscript_revisions()
+    last_updated = revisions[0]["date"] if revisions else None
+    manuscript_last_cycle = revisions[0]["cycle"] if revisions else None
+    if last_updated is None and manuscript_path.exists():
+        # Fallback for manuscripts rewritten before revision tracking existed
         mtime = manuscript_path.stat().st_mtime
         dt = datetime.fromtimestamp(mtime, tz=timezone.utc)
         last_updated = dt.strftime("%d %b %Y").lstrip("0")
@@ -829,6 +880,8 @@ async def manuscript_page(request: Request):
         "active_nav": "manuscript",
         "body_html": body_html,
         "manuscript_last_updated": last_updated,
+        "manuscript_last_cycle": manuscript_last_cycle,
+        "revisions": revisions,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })

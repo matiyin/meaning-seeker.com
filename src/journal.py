@@ -18,6 +18,7 @@ def render_journal_entry(
     image_path: Optional[Path] = None,
     woven_challenge: Optional[dict] = None,
     review_challenges: Optional[list[dict]] = None,
+    manuscript_updated: bool = False,
 ) -> str:
     heading = title.strip() if title and title.strip() else f"Cycle {cycle}"
     header_parts = [f"**Cycle {cycle}**", f"**Date:** {timestamp[:10]}", f"**Mode:** {mode}"]
@@ -58,6 +59,13 @@ def render_journal_entry(
         lines += ["", "---", "", "### Tensions resolved this cycle", ""]
         for t in tensions_resolved:
             lines.append(f"- **{t.tension_id}**: {t.resolution_note}")
+
+    if manuscript_updated:
+        lines += [
+            "", "---", "", "### Manuscript rewritten", "",
+            "This cycle's thinking changed the mind itself. The manuscript — the living document "
+            "of current understanding — was rewritten. [Read the current manuscript](/manuscript).",
+        ]
 
     if transition_entry:
         lines += ["", "---", "", "### Transition", "", transition_entry.strip()]

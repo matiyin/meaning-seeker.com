@@ -139,8 +139,8 @@ Only `OPENROUTER_API_KEY` (or `OPENAI_API_KEY`) is required. Everything else has
 |----------|-------------|---------|
 | **OPENROUTER_API_KEY** | OpenRouter API key | (none) |
 | **OPENAI_API_KEY** | Direct OpenAI key (overrides OpenRouter) | (none) |
-| **MODEL_ID** | Main inquiry model | `anthropic/claude-opus-4` |
-| **MONITOR_MODEL_ID** | Lightweight model for monitoring | `anthropic/claude-3.5-haiku` |
+| **MODEL_ID** | Main inquiry model | `anthropic/claude-opus-4.8` |
+| **MONITOR_MODEL_ID** | Lightweight model for monitoring | `anthropic/claude-haiku-4.5` |
 | **CYCLE_INTERVAL_SECONDS** | Seconds between cycles in continuous mode | `3600` |
 | **DATA_DIR** | Directory for state, archive, images | `./data` |
 | **SITE_URL** | Public URL (used in OG tags + Instagram posts) | `https://meaning-seeker.com` |

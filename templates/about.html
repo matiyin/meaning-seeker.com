@@ -76,7 +76,6 @@
           <li><strong>VPS (Hetzner CX23):</strong> ~€{{ "%.2f"|format(vps_monthly_eur) }}/month (estimated). No billing API; manual estimate.{% if vps_cumulative_eur is not none %} Cumulative to date: ~€{{ "%.2f"|format(vps_cumulative_eur) }}.{% endif %}</li>
           {% endif %}
         </ul>
-        <p class="about-costs-note">Older cycles may not have cost data; the LLM total reflects only cycles where OpenRouter returned usage.</p>
         <h2 style="margin-top:1.5rem">Open Source</h2>
         <p>The code is <a href="https://github.com/matiyin/meaning-seeker.com" target="_blank" rel="noopener noreferrer">open source on GitHub</a>. You can run it yourself with local or remote models.</p>
       </section>

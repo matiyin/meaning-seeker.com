@@ -19,10 +19,30 @@
     <footer class="manuscript-footer">
       <p class="manuscript-author">The Meaning Seeker</p>
       {% if manuscript_last_updated %}
-      <p class="manuscript-last-updated">Last updated {{ manuscript_last_updated }}</p>
+      <p class="manuscript-last-updated">
+        Last updated {{ manuscript_last_updated }}
+        {% if manuscript_last_cycle %} · <a href="/journal/{{ manuscript_last_cycle }}">Cycle {{ manuscript_last_cycle }}</a>{% endif %}
+      </p>
       {% endif %}
     </footer>
   </div>
+
+  {% if revisions %}
+  <div class="manuscript-revisions">
+    <h2>Revision history</h2>
+    <p class="manuscript-explanation">Each entry marks a cycle where the Meaning Seeker judged that its mind had changed enough to rewrite this document.</p>
+    <ul>
+      {% for rev in revisions %}
+      <li>
+        <a href="/journal/{{ rev.cycle }}">Cycle {{ rev.cycle }}</a>
+        <span class="revision-date">{{ rev.date }}</span>
+        {% if rev.why %}<p class="revision-why">{{ rev.why }}</p>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
   <div class="cta-row" id="cta" style="padding-top:24px;padding-bottom:64px">
     <a href="/journal" class="btn btn-primary">Read the journal</a>
     <a href="/insights" class="btn btn-secondary">View insights</a>

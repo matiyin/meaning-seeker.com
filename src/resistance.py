@@ -351,7 +351,11 @@ def _build_distinctiveness_note(texts: list[str]) -> str:
     return "\n".join(note_lines)
 
 
-def build_weekly_review_injection(cycle: int, state: StateFile) -> InjectionRecord:
+def build_weekly_review_injection(
+    cycle: int,
+    state: StateFile,
+    cycles_since_manuscript: int | None = None,
+) -> InjectionRecord:
     """Build injection for Sunday weekly review. Top pending + woven from past week."""
     all_challenges = load_human_challenges()
     pending = sorted(
@@ -436,6 +440,19 @@ def build_weekly_review_injection(cycle: int, state: StateFile) -> InjectionReco
     if mentioned_lines:
         prompt_parts.append("\n\n## Already Encountered This Week\n\n")
         prompt_parts.append("\n".join(mentioned_lines))
+
+    manuscript_note = (
+        "\n\n## Manuscript Check\n\n"
+        "As part of this review, reread your manuscript. "
+    )
+    if cycles_since_manuscript is not None and cycles_since_manuscript != 999:
+        manuscript_note += f"It has not changed in {cycles_since_manuscript} cycles. "
+    manuscript_note += (
+        "Does it still represent your mind after this week's challenges and thinking? "
+        "If your position has moved — even gradually — rewrite it. "
+        "A manuscript that no longer matches the mind is a failed review artifact."
+    )
+    prompt_parts.append(manuscript_note)
 
     return InjectionRecord(
         source="weekly_review",

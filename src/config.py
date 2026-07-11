@@ -40,7 +40,7 @@ else:
     API_BASE_URL = OPENROUTER_BASE_URL
     API_PROVIDER = "openrouter"
 
-MODEL_ID: str = os.getenv("MODEL_ID", "anthropic/claude-sonnet-4")
+MODEL_ID: str = os.getenv("MODEL_ID", "anthropic/claude-opus-4.8")
 SITE_URL: str = os.getenv("SITE_URL", "https://meaning-seeker.com")
 SITE_NAME: str = os.getenv("SITE_NAME", "Meaning Seeker")
 
@@ -60,7 +60,7 @@ TRANSITION_LOG_TOKEN_BUDGET: int = 2000
 TENSION_TOKEN_BUDGET: int = 1500
 
 # Phase B: Monitoring (lightweight model for repetition, substance, summary, threat mapping)
-MONITOR_MODEL_ID: str = os.getenv("MONITOR_MODEL_ID", "anthropic/claude-3.5-haiku")
+MONITOR_MODEL_ID: str = os.getenv("MONITOR_MODEL_ID", "anthropic/claude-haiku-4.5")
 
 # Phase B: Archive retrieval (Ollama + Chroma)
 OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -77,6 +77,9 @@ SILENCE_COOLDOWN: int = 10
 MOVE_LOG_SIZE: int = 20
 PATTERN_THRESHOLD_SAME_MOVE: int = 5  # same move in 5 of last 10 cycles
 PATTERN_THRESHOLD_NO_GROUNDING: int = 6  # no "concrete grounding" for 12+ cycles
+
+# Manuscript staleness: nudge a rewrite check after this many cycles without one
+MANUSCRIPT_STALE_CYCLES: int = int(os.getenv("MANUSCRIPT_STALE_CYCLES", "15"))
 
 # Phase C: Web server (127.0.0.1 when behind Caddy; 0.0.0.0 for direct access)
 WEB_HOST: str = os.getenv("WEB_HOST", "127.0.0.1")
@@ -95,7 +98,7 @@ SUBMISSION_MIN_LENGTH: int = 50
 SUBMISSION_MAX_LENGTH: int = 2000
 
 # Phase C: Filtering pipeline (reuse monitor model)
-FILTER_MODEL_ID: str = os.getenv("FILTER_MODEL_ID", os.getenv("MONITOR_MODEL_ID", "anthropic/claude-3.5-haiku"))
+FILTER_MODEL_ID: str = os.getenv("FILTER_MODEL_ID", os.getenv("MONITOR_MODEL_ID", "anthropic/claude-haiku-4.5"))
 
 # Phase C: Social media platforms
 X_API_KEY: str = os.getenv("X_API_KEY", "")
@@ -140,3 +143,7 @@ MAX_REVIEW_CHALLENGES: int = int(os.getenv("MAX_REVIEW_CHALLENGES", "10"))
 ORGANIC_WEAVE_THRESHOLD: float = float(os.getenv("ORGANIC_WEAVE_THRESHOLD", "0.3"))
 # Force Sunday weekly review this cycle (for testing). When set, run weekly review instead of normal injection.
 FORCE_WEEKLY_REVIEW: bool = os.getenv("FORCE_WEEKLY_REVIEW", "").lower() in ("1", "true", "yes")
+
+# Observability (GlitchTip / Sentry-compatible)
+SENTRY_DSN: str = os.getenv("SENTRY_DSN", "").strip() or os.getenv("GLITCHTIP_DSN", "").strip()
+SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT", os.getenv("ENVIRONMENT", "production"))

@@ -95,8 +95,8 @@ def store_cycle_embedding(
     tensions: list,
     challenge: str,
     timestamp: str | None = None,
-) -> None:
-    """Compute composite embedding and store in Chroma with metadata."""
+) -> bool:
+    """Compute composite embedding and store in Chroma with metadata. Returns True if stored."""
     if timestamp is None:
         timestamp = datetime.now(timezone.utc).isoformat()
     tension_descs = [t.description for t in tensions if getattr(t, "status", "") == "active"] if tensions else []
@@ -104,7 +104,7 @@ def store_cycle_embedding(
     vec = embed_text(composite)
     if vec is None:
         logger.warning("Skipping store_cycle_embedding for cycle %s: no embedding", cycle)
-        return
+        return False
     coll = _get_chroma_collection()
     doc_id = f"cycle-{cycle:06d}"
     # Chroma metadata: str, int, float, bool. Store tension descriptions for snippet display.
@@ -120,9 +120,22 @@ def store_cycle_embedding(
     }
     try:
         coll.add(ids=[doc_id], embeddings=[vec], documents=[thinking[:12000]], metadatas=[meta])
+        return True
     except Exception as e:
         # Id may already exist (e.g. re-run); try update or skip
         logger.warning("Chroma add failed for %s: %s", doc_id, e)
+        return False
+
+
+def delete_cycle_embedding(cycle: int) -> None:
+    """Remove one cycle's embedding from Chroma (e.g. for reindex)."""
+    coll = _get_chroma_collection()
+    doc_id = f"cycle-{cycle:06d}"
+    try:
+        coll.delete(ids=[doc_id])
+        logger.info("Deleted Chroma doc %s", doc_id)
+    except Exception as e:
+        logger.warning("Chroma delete failed for %s: %s", doc_id, e)
 
 
 def retrieve_similar(

@@ -11,10 +11,12 @@ from .config import (
     FORCE_IMAGE,
     FORCE_WEEKLY_REVIEW,
     IMAGE_MODEL,
+    MANUSCRIPT_STALE_CYCLES,
     MODEL_ID,
 )
-from . import engine, journal, ledger, memory, monitor, resistance, retrieval
+from . import engine, insights, journal, ledger, memory, monitor, resistance, retrieval
 from .models import ImageDecision, TransitionEntry
+from .observability import capture_exception, capture_message
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +150,20 @@ def run_cycle() -> bool:
     tensions = memory.load_tensions()
     commitments = memory.load_commitments()
 
+    # Manuscript staleness + pending reassessment nudge (built once, used below and in weekly review)
+    cycles_since_manuscript = insights.cycles_since_manuscript_update(cycle)
+    manuscript_context_parts: list[str] = []
+    if cycles_since_manuscript != 999 and cycles_since_manuscript >= MANUSCRIPT_STALE_CYCLES:
+        manuscript_context_parts.append(
+            f"Your manuscript has not changed in {cycles_since_manuscript} cycles. "
+            "Reread it above: does it still represent your mind, or has your thinking moved past it? "
+            "If your recent cycles have developed ideas the manuscript does not contain, rewrite it."
+        )
+    pending_reassessment = insights.get_pending_manuscript_reassessment()
+    if pending_reassessment:
+        manuscript_context_parts.append(pending_reassessment)
+    manuscript_context = "\n\n".join(manuscript_context_parts) or None
+
     # Sunday weekly review or normal injection
     is_sunday = datetime.now(timezone.utc).weekday() == 6
     use_weekly_review = bool(FORCE_WEEKLY_REVIEW)
@@ -159,7 +175,9 @@ def run_cycle() -> bool:
     if use_weekly_review:
         if FORCE_WEEKLY_REVIEW:
             logger.info("Cycle %s: FORCE_WEEKLY_REVIEW=1, running weekly review", cycle)
-        injection = resistance.build_weekly_review_injection(cycle, state)
+        injection = resistance.build_weekly_review_injection(
+            cycle, state, cycles_since_manuscript=cycles_since_manuscript
+        )
     else:
         pattern_interruption = monitor.get_pending_interruption()
         injection = resistance.select_injection(cycle, tensions, commitments, pattern_interruption)
@@ -184,9 +202,11 @@ def run_cycle() -> bool:
             injection=injection,
             silence_context=silence_context,
             cycles_since_last_image=cycles_since_image,
+            manuscript_context=manuscript_context,
         )
     except engine.EngineFailure as e:
         logger.error("Cycle %s: engine failed (%s): %s", cycle, e.reason, e.message)
+        capture_exception(e, cycle=cycle, reason=e.reason, stage="engine")
         state.last_failure = {
             "timestamp": timestamp,
             "reason": e.reason,
@@ -203,6 +223,7 @@ def run_cycle() -> bool:
         return False
     except Exception as e:
         logger.exception("Cycle %s: engine failed: %s", cycle, e)
+        capture_exception(e, cycle=cycle, reason="api_error", stage="engine")
         state.last_failure = {
             "timestamp": timestamp,
             "reason": "api_error",
@@ -217,6 +238,9 @@ def run_cycle() -> bool:
             "message": str(e),
         })
         return False
+
+    if pending_reassessment:
+        insights.clear_pending_manuscript_reassessment()
 
     commitment_map = {c.commitment_id: c for c in commitments if c.status == "active"}
     recent_thinking = memory.load_recent_thinking(6)
@@ -362,6 +386,7 @@ def run_cycle() -> bool:
         image_path=image_path,
         woven_challenge=woven_challenge,
         review_challenges=review_challenges,
+        manuscript_updated=bool(output.manuscript_update),
     )
     memory.save_journal_entry(cycle, journal_text)
 
@@ -438,10 +463,16 @@ def run_cycle() -> bool:
 
     # 5. Paradigm shift detection
     try:
-        from . import insights
         shifts = insights.detect_paradigm_shifts(cycle, output, tensions, commitments)
         if shifts:
             logger.info("Cycle %s: %d paradigm shift(s) detected", cycle, len(shifts))
+        if shifts and not output.manuscript_update:
+            descriptions = "; ".join(s["description"] for s in shifts)
+            insights.set_pending_manuscript_reassessment(
+                f"Last cycle produced a paradigm shift ({descriptions}) but the manuscript was not rewritten. "
+                "A shift of this weight usually changes the mind. Reread your manuscript: "
+                "if it no longer reflects your position after this shift, rewrite it."
+            )
     except Exception as _e:
         logger.warning("Phase C: paradigm shift detection error (non-fatal): %s", _e)
 
@@ -492,6 +523,21 @@ def run(max_cycles: int | None = None) -> None:
             return
         except Exception as e:
             logger.exception("Unhandled error in cycle: %s", e)
+            try:
+                state = memory.load_state()
+                attempted = state.cycle + 1
+                capture_exception(e, attempted_cycle=attempted, stage="cycle")
+                state.last_failure = {
+                    "timestamp": _now_iso(),
+                    "reason": "cycle_error",
+                    "attempted_cycle": attempted,
+                    "message": str(e),
+                }
+                memory.save_state(state)
+                memory.append_failure_record(state.last_failure)
+            except Exception:
+                logger.exception("Failed to record cycle failure in state")
+                capture_exception(e, stage="cycle")
 
         try:
             sleep_until_next()

@@ -3,7 +3,7 @@ import argparse
 import logging
 import sys
 
-from src import orchestrator
+from src import observability, orchestrator
 
 
 def main() -> None:
@@ -29,6 +29,8 @@ def main() -> None:
         help="Log verbosity (default: INFO)",
     )
     args = parser.parse_args()
+
+    observability.init_observability(service="inquiry")
 
     logging.basicConfig(
         level=getattr(logging, args.log_level),

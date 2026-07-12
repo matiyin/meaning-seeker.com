@@ -127,6 +127,13 @@ class ImageDecision(BaseModel):
     why: Optional[str] = None
 
 
+class LinkCandidate(BaseModel):
+    text: str
+    kind: str = "person"  # person | work | text
+    canonical_name: str
+    author: Optional[str] = None  # for kind=work: author name used to disambiguate lookup
+
+
 class CycleOutput(BaseModel):
     title: str = ""
     mode: str
@@ -139,6 +146,7 @@ class CycleOutput(BaseModel):
     summary: Optional[str] = None
     social_output: Optional[str] = None
     image_decision: ImageDecision = Field(default_factory=ImageDecision)
+    link_candidates: list[LinkCandidate] = Field(default_factory=list)
 
 
 # ── Phase C: Web + Filtering + Social ─────────────────────────────────────────

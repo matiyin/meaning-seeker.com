@@ -62,6 +62,18 @@
     {% endif %}
   </div>
 
+  {% if used_entities %}
+  <div class="entity-popups" aria-hidden="true">
+    {% for entity in used_entities %}
+    <div id="entity-popup-{{ entity.slug }}" class="entity-popup" role="dialog" aria-labelledby="entity-popup-title-{{ entity.slug }}" hidden>
+      <button type="button" class="entity-popup-close" aria-label="Close">×</button>
+      <p class="entity-popup-summary" id="entity-popup-title-{{ entity.slug }}">{{ entity.summary }}</p>
+      <a href="{{ entity.url }}" class="entity-popup-link" target="_blank" rel="noopener noreferrer">{% if entity.internal %}Read journal entry →{% else %}Read more on {{ entity.source_name }} ↗{% endif %}</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <!-- Prev/next navigation -->
   <div class="nav-pair">
     <div class="nav-pair-row">

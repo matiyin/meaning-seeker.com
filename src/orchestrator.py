@@ -14,7 +14,7 @@ from .config import (
     MANUSCRIPT_STALE_CYCLES,
     MODEL_ID,
 )
-from . import engine, insights, journal, ledger, memory, monitor, resistance, retrieval
+from . import engine, insights, journal, ledger, memory, monitor, resistance, retrieval, link_resolver
 from .models import ImageDecision, TransitionEntry
 from .observability import capture_exception, capture_message
 
@@ -241,6 +241,14 @@ def run_cycle() -> bool:
 
     if pending_reassessment:
         insights.clear_pending_manuscript_reassessment()
+
+    if output.link_candidates:
+        try:
+            report = link_resolver.resolve_and_merge_candidates(output.link_candidates)
+            resolved = sum(1 for r in report if r.get("entry"))
+            logger.info("Cycle %s: resolved %s/%s link candidates", cycle, resolved, len(report))
+        except Exception as e:
+            logger.warning("Cycle %s: link resolution failed: %s", cycle, e)
 
     commitment_map = {c.commitment_id: c for c in commitments if c.status == "active"}
     recent_thinking = memory.load_recent_thinking(6)

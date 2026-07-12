@@ -37,7 +37,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
-from . import resistance
+from . import resistance, link_resolver
 from .art_direction import ART_DIRECTION_PROMPT
 from .health import cycle_health, web_health
 from .observability import init_observability
@@ -710,8 +710,7 @@ async def home(request: Request):
     else:
         next_run_at_ms = last_ms + CYCLE_INTERVAL_SECONDS * 1000 if last_ms else 0
 
-    return templates.TemplateResponse("home.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "home.html", {
         "active_nav": "home",
         "state": state,
         "cycle_interval_seconds": CYCLE_INTERVAL_SECONDS,
@@ -769,8 +768,7 @@ async def journal_list(request: Request):
         social_profile_links.append({"name": "Threads", "url": THREADS_PROFILE_URL.strip()})
     if INSTAGRAM_PROFILE_URL.strip():
         social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
-    return templates.TemplateResponse("journal_list.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "journal_list.html", {
         "active_nav": "journal",
         "journals": journals,
         "journals_json": json.dumps(journals),
@@ -793,6 +791,10 @@ async def journal_entry(request: Request, cycle: int):
     body_md = meta["body_md"]
     if meta.get("thumbnail_url"):
         body_md = re.sub(r"\n*!\[[^\]]*\]\([^)]+\)\n*", "\n\n", body_md, count=1).strip()
+    dictionary = link_resolver.load_dictionary()
+    body_md, used_entities = link_resolver.annotate_links(body_md, dictionary)
+    body_md, used_internal = link_resolver.annotate_internal_links(body_md)
+    used_entities = used_entities + used_internal
     # Split before tensions section for CTA placement
     tensions_match = re.search(
         r"\n---\s*\n+\s*### (?:New tensions carried forward|Tensions resolved this cycle|Transition)\b",
@@ -845,8 +847,7 @@ async def journal_entry(request: Request, cycle: int):
         "why": image_decision.get("why") or "",
     }
 
-    return templates.TemplateResponse("journal_entry.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "journal_entry.html", {
         "active_nav": "journal",
         "meta": meta,
         "body_before_html": body_before_html,
@@ -857,6 +858,7 @@ async def journal_entry(request: Request, cycle: int):
         "next_meta": next_meta,
         "image_prompt": image_prompt,
         "image_art_direction": image_art_direction,
+        "used_entities": used_entities,
         "site_url": SITE_URL,
         "site_name": SITE_NAME,
     })
@@ -875,8 +877,7 @@ async def manuscript_page(request: Request):
         mtime = manuscript_path.stat().st_mtime
         dt = datetime.fromtimestamp(mtime, tz=timezone.utc)
         last_updated = dt.strftime("%d %b %Y").lstrip("0")
-    return templates.TemplateResponse("manuscript.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "manuscript.html", {
         "active_nav": "manuscript",
         "body_html": body_html,
         "manuscript_last_updated": last_updated,
@@ -916,8 +917,7 @@ async def gallery(request: Request):
             "concept": image_decision.get("concept") or "",
             "why": image_decision.get("why") or "",
         })
-    return templates.TemplateResponse("gallery.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "gallery.html", {
         "active_nav": "gallery",
         "gallery_items": gallery_items,
         "gallery_items_json": json.dumps(gallery_items),
@@ -961,8 +961,7 @@ async def about_page(request: Request):
         except ValueError:
             pass
 
-    return templates.TemplateResponse("about.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "about.html", {
         "active_nav": "about",
         "social_profile_links": social_profile_links,
         "site_url": SITE_URL,
@@ -1010,8 +1009,7 @@ async def insights(request: Request):
     # Oldest active tension for letterbox context
     letterbox_tension = active_tensions[0] if active_tensions else None
 
-    return templates.TemplateResponse("insights.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "insights.html", {
         "active_nav": "insights",
         "state": state,
         "active_tensions": active_tensions,
@@ -1050,8 +1048,7 @@ async def challenge_page(request: Request):
     if INSTAGRAM_PROFILE_URL.strip():
         social_profile_links.append({"name": "Instagram", "url": INSTAGRAM_PROFILE_URL.strip()})
     queue_ctx = _load_challenge_queue_context(state)
-    return templates.TemplateResponse("challenge.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "challenge.html", {
         "active_nav": "challenge",
         "letterbox_tension": letterbox_tension,
         "social_replies": social_replies,
@@ -1130,8 +1127,7 @@ async def admin_page(request: Request):
     token = request.cookies.get(ADMIN_COOKIE, "")
     if _verify_admin_session(token):
         return RedirectResponse(url="/admin/dashboard", status_code=302)
-    return templates.TemplateResponse("admin_login.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "admin_login.html", {
         "site_name": SITE_NAME,
     })
 
@@ -1141,8 +1137,7 @@ async def admin_page(request: Request):
 async def admin_login(request: Request, password: str = Form("")):
     """Verify password, set session cookie, redirect to dashboard."""
     if not _verify_admin_password(password.strip()):
-        return templates.TemplateResponse("admin_login.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "admin_login.html", {
             "site_name": SITE_NAME,
             "error": "Invalid password.",
         }, status_code=401)
@@ -1211,8 +1206,7 @@ async def admin_dashboard(request: Request, _: None = Depends(_require_admin)):
 
     has_goaccess_report = (DATA_DIR / "admin" / "goaccess_report.html").exists()
 
-    return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "admin_dashboard.html", {
         "site_name": SITE_NAME,
         "cycles_complete": len(journals),
         "active_tensions": active_tensions,

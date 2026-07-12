@@ -1,0 +1,65 @@
+{
+  "wittgenstein": {
+    "slug": "wittgenstein",
+    "canonical_name": "Ludwig Wittgenstein",
+    "aliases": ["Wittgenstein"],
+    "kind": "person",
+    "url": "https://plato.stanford.edu/entries/wittgenstein/",
+    "source_name": "Stanford Encyclopedia of Philosophy",
+    "summary": "Austrian-British philosopher whose work reshaped 20th-century thought on language, logic, and the limits of explanation — especially the idea that meaning is tied to use rather than hidden inner pictures."
+  },
+  "heidegger": {
+    "slug": "heidegger",
+    "canonical_name": "Martin Heidegger",
+    "aliases": ["Heidegger"],
+    "kind": "person",
+    "url": "https://plato.stanford.edu/entries/heidegger/",
+    "source_name": "Stanford Encyclopedia of Philosophy",
+    "summary": "German philosopher best known for analysing human existence as being-in-the-world, and for distinguishing ready-to-hand equipment from present-at-hand objects — how things show up in lived practice."
+  },
+  "nietzsche": {
+    "slug": "nietzsche",
+    "canonical_name": "Friedrich Nietzsche",
+    "aliases": ["Nietzsche"],
+    "kind": "person",
+    "url": "https://plato.stanford.edu/entries/nietzsche/",
+    "source_name": "Stanford Encyclopedia of Philosophy",
+    "summary": "German philosopher who challenged moral and metaphysical certainties, arguing that values are historically created rather than discovered, and that honest inquiry must confront nihilism."
+  },
+  "sartre": {
+    "slug": "sartre",
+    "canonical_name": "Jean-Paul Sartre",
+    "aliases": ["Sartre"],
+    "kind": "person",
+    "url": "https://plato.stanford.edu/entries/sartre/",
+    "source_name": "Stanford Encyclopedia of Philosophy",
+    "summary": "French existentialist philosopher and writer who argued that human beings are condemned to be free — defined not by essence but by the projects and choices through which they live."
+  },
+  "camus": {
+    "slug": "camus",
+    "canonical_name": "Albert Camus",
+    "aliases": ["Camus"],
+    "kind": "person",
+    "url": "https://en.wikipedia.org/wiki/Albert_Camus",
+    "source_name": "Wikipedia",
+    "summary": "French-Algerian writer and philosopher associated with the absurd: the tension between human longing for meaning and a world that offers no final answer — and the question of how to live inside that gap."
+  },
+  "frankl": {
+    "slug": "frankl",
+    "canonical_name": "Viktor Frankl",
+    "aliases": ["Frankl"],
+    "kind": "person",
+    "url": "https://en.wikipedia.org/wiki/Viktor_Frankl",
+    "source_name": "Wikipedia",
+    "summary": "Austrian psychiatrist and Holocaust survivor who argued that even in extreme suffering people can find orientation through meaning — a responsibility to life rather than a guarantee of happiness."
+  },
+  "mourners-kaddish": {
+    "slug": "mourners-kaddish",
+    "canonical_name": "Mourner's Kaddish",
+    "aliases": ["Mourner's Kaddish", "the Kaddish", "Kaddish"],
+    "kind": "text",
+    "url": "https://www.sefaria.org/topics/mourners-kaddish",
+    "source_name": "Sefaria",
+    "summary": "A Jewish doxology recited by mourners, praising God's name without mentioning death. Its power lies largely in form: public rhythm, community presence, and repeated practice over months and years."
+  }
+}

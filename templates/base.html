@@ -344,6 +344,83 @@ requestAnimationFrame(draw);
   });
 })();
 </script>
+<script>
+(function(){
+  var openPopup=null;
+  var openTrigger=null;
+
+  function closeEntityPopup(){
+    if(openPopup){
+      openPopup.classList.remove('open');
+      openPopup.setAttribute('hidden','');
+      openPopup.style.left='';
+      openPopup.style.top='';
+    }
+    if(openTrigger)openTrigger.classList.remove('popup-open');
+    openPopup=null;
+    openTrigger=null;
+  }
+
+  function positionEntityPopup(popup,trigger){
+    popup.removeAttribute('hidden');
+    popup.classList.add('open');
+    popup.style.visibility='hidden';
+    popup.style.display='block';
+    var rect=trigger.getBoundingClientRect();
+    var popupRect=popup.getBoundingClientRect();
+    var left=rect.left+rect.width/2-popupRect.width/2;
+    var top=rect.bottom+8;
+    left=Math.max(8,Math.min(left,window.innerWidth-popupRect.width-8));
+    if(top+popupRect.height>window.innerHeight-8){
+      top=rect.top-popupRect.height-8;
+    }
+    if(top<8)top=rect.bottom+8;
+    popup.style.left=left+'px';
+    popup.style.top=top+'px';
+    popup.style.visibility='';
+  }
+
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    if(!t||!t.closest)return;
+    var trigger=t.closest('.entity-trigger');
+    if(trigger){
+      e.preventDefault();
+      e.stopPropagation();
+      var slug=trigger.getAttribute('data-entity');
+      if(!slug)return;
+      var popup=document.getElementById('entity-popup-'+slug);
+      if(!popup)return;
+      if(openPopup===popup&&openTrigger===trigger){
+        closeEntityPopup();
+        return;
+      }
+      closeEntityPopup();
+      openPopup=popup;
+      openTrigger=trigger;
+      trigger.classList.add('popup-open');
+      positionEntityPopup(popup,trigger);
+      return;
+    }
+    var activePopup=t.closest('.entity-popup');
+    if(activePopup&&openPopup===activePopup){
+      if(t.closest('.entity-popup-link'))return;
+      e.preventDefault();
+      closeEntityPopup();
+      return;
+    }
+    closeEntityPopup();
+  });
+
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape')closeEntityPopup();
+  });
+
+  window.addEventListener('resize',function(){
+    if(openPopup&&openTrigger)positionEntityPopup(openPopup,openTrigger);
+  });
+})();
+</script>
 {% block extra_scripts %}{% endblock %}
 </body>
 </html>

@@ -134,7 +134,7 @@ def _format_post(
             many characters for the length budget instead of its raw length.
     """
     journal_url = f"{SITE_URL.rstrip('/')}/journal/{cycle}" if cycle and SITE_URL else ""
-    tagline = "An AI doing philosophy in public — one cycle at a time."
+    tagline = "AI philosophy in public."
 
     def _build(quote: str, include_url: bool, include_tagline: bool) -> str:
         parts = [f"\u201c{quote}\u201d"]
@@ -150,9 +150,9 @@ def _format_post(
             n = n - len(journal_url) + url_weighted_len
         return n
 
-    # Prefer: quote + url + tagline → quote + url → truncated quote + url
-    # (URL is never dropped when present.)
-    for include_tagline in (True, False):
+    # Prefer: quote + url → quote + url + tagline → truncated quote + url
+    # (URL is never dropped when present; tagline is optional filler.)
+    for include_tagline in (False, True):
         include_url = bool(journal_url)
         candidate = _build(text, include_url=include_url, include_tagline=include_tagline)
         if _weighted_len(candidate, include_url) <= limit:

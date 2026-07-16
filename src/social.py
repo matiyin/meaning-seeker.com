@@ -113,32 +113,65 @@ def _moderate(text: str) -> tuple[bool, str]:
 
 # ── Platform implementations ───────────────────────────────────────────────────
 
-def _format_post(text: str, cycle: int, limit: int) -> str:
+# X counts every HTTP(S) URL as a fixed 23 characters (t.co), regardless of length.
+_X_URL_WEIGHTED_LEN = 23
+
+
+def _format_post(
+    text: str,
+    cycle: int,
+    limit: int,
+    *,
+    url_weighted_len: int | None = None,
+) -> str:
     """Wrap the quote in curly quotes and append a journal link + tagline.
 
-    Falls back gracefully: if everything doesn't fit, drops the tagline; if still
-    too long, drops the link; finally truncates the quote.
+    The journal URL is always kept when available. If the full post does not fit,
+    drop the tagline first, then truncate the quote — never drop the link.
+
+    Args:
+        url_weighted_len: If set (e.g. 23 for X), count the journal URL as this
+            many characters for the length budget instead of its raw length.
     """
     journal_url = f"{SITE_URL.rstrip('/')}/journal/{cycle}" if cycle and SITE_URL else ""
     tagline = "An AI doing philosophy in public — one cycle at a time."
 
     def _build(quote: str, include_url: bool, include_tagline: bool) -> str:
         parts = [f"\u201c{quote}\u201d"]
-        if include_url:
+        if include_url and journal_url:
             parts.append(journal_url)
         if include_tagline:
             parts.append(tagline)
         return "\n\n".join(parts)
 
-    for include_tagline in (True, False):
-        for include_url in (True, False):
-            candidate = _build(text, include_url=include_url, include_tagline=include_tagline)
-            if len(candidate) <= limit:
-                return candidate
+    def _weighted_len(candidate: str, include_url: bool) -> int:
+        n = len(candidate)
+        if include_url and journal_url and url_weighted_len is not None:
+            n = n - len(journal_url) + url_weighted_len
+        return n
 
-    # Last resort: truncate the quote itself
-    overhead = len(_build("", include_url=False, include_tagline=False))
-    return _build(text[: limit - overhead - 1], include_url=False, include_tagline=False)
+    # Prefer: quote + url + tagline → quote + url → truncated quote + url
+    # (URL is never dropped when present.)
+    for include_tagline in (True, False):
+        include_url = bool(journal_url)
+        candidate = _build(text, include_url=include_url, include_tagline=include_tagline)
+        if _weighted_len(candidate, include_url) <= limit:
+            return candidate
+
+    # Truncate quote so URL (and curly quotes / separators) still fit.
+    include_url = bool(journal_url)
+    empty = _build("", include_url=include_url, include_tagline=False)
+    empty_weight = _weighted_len(empty, include_url)
+    # Leave room for an ellipsis if we truncate mid-word.
+    max_quote = max(0, limit - empty_weight - 1)
+    quote = text[:max_quote].rstrip()
+    if len(quote) < len(text):
+        quote = quote.rsplit(" ", 1)[0].rstrip() if " " in quote else quote
+        quote = quote.rstrip(".,;:—-") + "…"
+        # Re-fit if ellipsis pushed us over (rare).
+        while quote and _weighted_len(_build(quote, include_url, False), include_url) > limit:
+            quote = quote[:-2].rstrip() + "…" if len(quote) > 1 else ""
+    return _build(quote, include_url=include_url, include_tagline=False)
 
 
 def _bluesky_link_facets(text: str, journal_url: str):
@@ -172,7 +205,9 @@ def _post_x(text: str, cycle: int = 0, image_path: Optional[Path] = None) -> dic
             access_token=X_ACCESS_TOKEN,
             access_token_secret=X_ACCESS_SECRET,
         )
-        formatted = _format_post(text, cycle=cycle, limit=280)
+        formatted = _format_post(
+            text, cycle=cycle, limit=280, url_weighted_len=_X_URL_WEIGHTED_LEN
+        )
 
         media_ids = None
         if image_path and image_path.exists():

@@ -232,7 +232,7 @@ Rules:
 - "title" is required every cycle. It should be short (3-8 words), evocative, and capture the essential movement or question of this cycle's thinking. Not a summary -- a name. It will appear as the heading in the published journal.
 - "thinking" is your actual philosophical work. Length varies: 150-4000 tokens. A sharp short entry beats a padded long one. Write with depth and honesty. Use Markdown formatting to give the text shape: **bold** for key claims, turning points, or phrases that carry the weight of the argument; *italics* for tentative formulations, named concepts, or words used in a special sense; > blockquotes for moments of crystallized insight. You may use ## or ### headings to mark distinct movements within the thinking if the structure calls for it, but do not use # (the title serves as the top-level heading). Use all formatting sparingly -- emphasis everywhere is emphasis nowhere. The formatting should make the inquiry more readable, not decorative.
 - "manuscript_update" should be the full replacement manuscript text if your understanding has genuinely shifted. The manuscript is your mind -- rewrite it when the mind changes, not merely when you have new thoughts. If no rewrite is warranted, set it to null. Use Markdown formatting to give the manuscript shape: **bold** for claims that carry the most weight; *italics* for tentative formulations or terms used in a special sense; > blockquotes for crystallized positions; ## or ### headings to mark distinct sections or movements of thought. Use # only if the manuscript has a title as its first line. Formatting should serve clarity and structure, not decoration.
-- "transition_entry" captures what moved this cycle in 100-200 tokens. Only include it when something genuinely shifted. Most cycles do not produce transitions.
+- "transition_entry" must be a plain string (or null), never an object. It captures what moved this cycle in 100-200 tokens. Only include it when something genuinely shifted. Most cycles do not produce transitions.
 - "tensions_new" and "tensions_resolved" and "commitment_updates" may all be empty arrays.
 - Only resolve tension IDs that appear in your current tension list. Do not fabricate IDs.
 - "summary" is required every cycle. A clear, readable description of what this cycle's thinking explored or arrived at, in 1-2 sentences (120-160 characters). Written for someone who hasn't read the entry yet. No Markdown, no jargon, no mystery -- just an honest description. This will appear in journal listings and as the page's meta description.
@@ -416,6 +416,35 @@ Do not treat it as a separate task.'''
 
 # ── API call ───────────────────────────────────────────────────────────────────
 
+def _coerce_str_field(value: object) -> object:
+    """Models sometimes wrap string fields as {"text": "..."}; accept that."""
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for key in ("text", "content", "entry", "value"):
+            inner = value.get(key)
+            if isinstance(inner, str):
+                return inner
+    return value
+
+
+def _normalize_cycle_output_data(data: dict) -> dict:
+    for field in (
+        "title",
+        "thinking",
+        "manuscript_update",
+        "transition_entry",
+        "summary",
+        "social_output",
+    ):
+        if field in data:
+            coerced = _coerce_str_field(data[field])
+            if coerced is not data[field]:
+                logger.info("Cycle output: coerced %s from object to string", field)
+            data[field] = coerced
+    return data
+
+
 def _do_one_request(
     client: OpenAI,
     system_prompt: str,
@@ -456,7 +485,7 @@ def _do_one_request(
             text_to_parse = match.group(1)
 
     try:
-        data = json.loads(text_to_parse)
+        data = _normalize_cycle_output_data(json.loads(text_to_parse))
         output = CycleOutput(**data)
     except (json.JSONDecodeError, ValidationError) as e:
         logger.error(f"Cycle {cycle}: failed to parse response: {e}")

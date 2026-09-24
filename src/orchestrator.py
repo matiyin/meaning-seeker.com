@@ -129,7 +129,7 @@ def run_cycle() -> bool:
         return True
 
     # ── Phase C: pre-cycle steps ──────────────────────────────────────────────
-    # 1. Collect X replies into quarantine (runs silently if X_BEARER_TOKEN not set)
+    # 1. Collect X replies into quarantine (needs OAuth 1.0a user credentials)
     try:
         from . import x_collector
         x_collector.collect_replies()

@@ -374,6 +374,16 @@ def _load_json(path: Path, default):
         return default
 
 
+def _failure_message(state: dict) -> str:
+    """last_failure is stored as a dict; templates historically treated it as a string."""
+    fail = state.get("last_failure")
+    if not fail:
+        return ""
+    if isinstance(fail, dict):
+        return str(fail.get("message") or fail.get("reason") or "")
+    return str(fail)
+
+
 def _load_state() -> dict:
     raw = _load_json(DATA_DIR / "state.json", {})
     # Live status: state modified within live window (min 15 min, or full cycle interval for long cycles)
@@ -713,6 +723,7 @@ async def home(request: Request):
     return templates.TemplateResponse(request, "home.html", {
         "active_nav": "home",
         "state": state,
+        "failure_message": _failure_message(state),
         "cycle_interval_seconds": CYCLE_INTERVAL_SECONDS,
         "next_run_at_ms": next_run_at_ms,
         "journals": journals,
@@ -1012,6 +1023,7 @@ async def insights(request: Request):
     return templates.TemplateResponse(request, "insights.html", {
         "active_nav": "insights",
         "state": state,
+        "failure_message": _failure_message(state),
         "active_tensions": active_tensions,
         "recently_resolved": recently_resolved,
         "active_commitments": active_commitments,

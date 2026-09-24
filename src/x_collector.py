@@ -17,7 +17,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from .config import DATA_DIR, X_BEARER_TOKEN
+from .config import (
+    DATA_DIR,
+    X_ACCESS_SECRET,
+    X_ACCESS_TOKEN,
+    X_API_KEY,
+    X_API_SECRET,
+    X_BEARER_TOKEN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +73,17 @@ def collect_replies() -> int:
 
     Returns the count of new submissions added to quarantine.
     """
-    if not X_BEARER_TOKEN:
-        logger.debug("X_BEARER_TOKEN not set, skipping X reply collection")
+    # Mentions require OAuth 1.0a user context. Bearer-only Client() still
+    # constructs OAuth1 with consumer_key=None and raises TypeError.
+    has_user_auth = bool(X_API_KEY and X_API_SECRET and X_ACCESS_TOKEN and X_ACCESS_SECRET)
+    if not has_user_auth:
+        if X_BEARER_TOKEN:
+            logger.warning(
+                "X collector: skip — mentions need X_API_KEY/SECRET and X_ACCESS_TOKEN/SECRET "
+                "(bearer token alone is not enough)"
+            )
+        else:
+            logger.debug("X user credentials not set, skipping X reply collection")
         return 0
 
     try:
@@ -80,11 +96,14 @@ def collect_replies() -> int:
     since_id: Optional[str] = state.get("last_tweet_id")
 
     try:
-        client = tweepy.Client(bearer_token=X_BEARER_TOKEN)
+        client = tweepy.Client(
+            consumer_key=X_API_KEY,
+            consumer_secret=X_API_SECRET,
+            access_token=X_ACCESS_TOKEN,
+            access_token_secret=X_ACCESS_SECRET,
+            bearer_token=X_BEARER_TOKEN or None,
+        )
 
-        # Get authenticated user ID (needed for mentions lookup)
-        # Note: mentions_timeline requires user context auth (OAuth 1a/2a), not just bearer
-        # Using search_recent_tweets as fallback for bearer-token-only access
         me = client.get_me()
         if not me or not me.data:
             logger.warning("X collector: could not get authenticated user")

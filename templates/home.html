@@ -17,8 +17,8 @@
         <span>Running — cycle {{ current_cycle }}</span>
       {% else %}
         <span class="offline-dot"></span>
-        {% if state.get('last_failure') %}
-          <span>Paused — {{ state.last_failure[:80] }}</span>
+        {% if failure_message %}
+          <span>Paused — {{ failure_message[:80] }}</span>
         {% else %}
           <span>Offline — last seen cycle {{ current_cycle }}</span>
         {% endif %}

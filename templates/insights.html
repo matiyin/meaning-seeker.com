@@ -18,15 +18,15 @@
   </div>
 
   <!-- Run status banner -->
-  {% if state.get('last_failure') %}
+  {% if failure_message %}
   <div class="status-banner status-error">
     <span class="status-banner-icon">⚠</span>
     <div>
       <strong>Paused</strong> —
-      {% if 'credits' in state.last_failure.lower() or 'quota' in state.last_failure.lower() %}
+      {% if 'credits' in failure_message.lower() or 'quota' in failure_message.lower() %}
         Out of API credits. The inquiry is paused until refilled.
       {% else %}
-        {{ state.last_failure[:200] }}
+        {{ failure_message[:200] }}
       {% endif %}
     </div>
   </div>

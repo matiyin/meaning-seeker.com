@@ -62,9 +62,9 @@ def _get_client() -> OpenAI:
 
 
 def _is_retriable(e: Exception) -> bool:
-    """True if the failure might be transient (timeout, 5xx, connection, empty)."""
+    """True if the failure might be transient (timeout, 5xx, connection, empty, parse)."""
     if isinstance(e, EngineFailure):
-        return e.reason in ("empty_response", "timeout", "api_error")
+        return e.reason in ("empty_response", "timeout", "api_error", "parse_error")
     status = getattr(e, "status_code", None)
     if status is not None:
         return 500 <= status < 600
@@ -416,6 +416,57 @@ Do not treat it as a separate task.'''
 
 # ── API call ───────────────────────────────────────────────────────────────────
 
+def _slice_json_object(text: str) -> str | None:
+    """Return the first complete `{...}` object, ignoring braces inside strings."""
+    start = text.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
+
+
+def _parse_cycle_json(raw: str) -> dict:
+    """Parse cycle JSON, including preamble-then-object replies (Opus often does this)."""
+    text = raw.strip()
+    if "```" in text:
+        fenced = _slice_json_object(text)
+        if fenced:
+            text = fenced
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
+    sliced = _slice_json_object(raw)
+    if not sliced:
+        raise json.JSONDecodeError("No JSON object found", raw, 0)
+    data = json.loads(sliced)
+    if not isinstance(data, dict):
+        raise json.JSONDecodeError("JSON root is not an object", sliced, 0)
+    return data
+
+
 def _coerce_str_field(value: object) -> object:
     """Models sometimes wrap string fields as {"text": "..."}; accept that."""
     if value is None or isinstance(value, str):
@@ -477,15 +528,10 @@ def _do_one_request(
 
     logger.debug(f"Cycle {cycle}: response {len(raw)} chars")
 
-    # Try to extract JSON if wrapped in markdown code block
-    text_to_parse = raw
-    if "```" in raw:
-        match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", raw)
-        if match:
-            text_to_parse = match.group(1)
-
     try:
-        data = _normalize_cycle_output_data(json.loads(text_to_parse))
+        if not raw.lstrip().startswith("{"):
+            logger.info("Cycle %s: stripping non-JSON preamble before first object", cycle)
+        data = _normalize_cycle_output_data(_parse_cycle_json(raw))
         output = CycleOutput(**data)
     except (json.JSONDecodeError, ValidationError) as e:
         logger.error(f"Cycle {cycle}: failed to parse response: {e}")
@@ -518,8 +564,10 @@ def call_api(system_prompt: str, user_message: str, cycle: int) -> tuple[CycleOu
                 time.sleep(backoff)
             logger.info(f"Cycle {cycle}: calling {MODEL_ID}" + (f" (attempt {attempt + 1})" if attempt else ""))
             return _do_one_request(client, system_prompt, user_message, cycle)  # (output, raw, usage)
-        except EngineFailure:
-            raise
+        except EngineFailure as e:
+            if not _is_retriable(e) or attempt >= API_RETRY_ATTEMPTS:
+                raise
+            logger.warning("Cycle %s: %s (will retry): %s", cycle, e.reason, e.message)
         except Exception as e:
             last_error = e
             status_code = getattr(e, "status_code", None)
